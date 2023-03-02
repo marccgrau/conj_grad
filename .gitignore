@@ -87,3 +87,10 @@ target/
 
 # Mypy cache
 .mypy_cache/
+
+# editor stuff
+.editorconfig
+.flake8
+
+# logging
+/wandb/
