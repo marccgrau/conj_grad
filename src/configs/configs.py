@@ -83,3 +83,14 @@ class ADAMConfig(KerasOptimizerConfig):
     beta_2: float
     epsilon: float
 
+@dataclasses.dataclass(slots=True, frozen=True)
+class NLCGConfig(KerasOptimizerConfig):
+    alpha: float
+    epsilon: float
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class CustomConfig(KerasOptimizerConfig):
+    c1: float
+    c2: float
+    tol: float
+    max_iter: int

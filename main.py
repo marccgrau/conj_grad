@@ -15,6 +15,7 @@ from src.models.tracking import TrainTrack, CustomTqdmCallback, compute_full_los
 from src.configs import experiment_configs
 from src.utils import setup
 
+
 pp = pprint.PrettyPrinter(underscore_numbers=True).pprint
 load_dotenv(find_dotenv())
 
@@ -77,7 +78,7 @@ def main(
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
         return loss
     
-    with CustomTqdmCallback(desc="Keras Optimizer", total = train_config.max_calls) as t:
+    with CustomTqdmCallback(desc="Keras Optimizer", total = train_config.max_epochs) as t:
         for epoch in range(train_config.max_epochs):
             tracker.epoch += 1
             

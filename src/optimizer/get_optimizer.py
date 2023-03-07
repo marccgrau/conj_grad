@@ -1,7 +1,9 @@
 import tensorflow as tf
 
-from src.configs.configs import OptimizerConfig, ADAMConfig, RMSPROPConfig, SGDConfig
+from src.configs.configs import OptimizerConfig, ADAMConfig, RMSPROPConfig, SGDConfig, NLCGConfig, CustomConfig
 from src.utils.custom import as_Kfloat
+from src.optimizer.cg_optimizer import NLCGOptimizer
+from src.optimizer.custom_optimizer import CustomOptimizer
 
 def fetch_optimizer(optimizer_config: OptimizerConfig):
     if isinstance(optimizer_config, RMSPROPConfig):
@@ -21,6 +23,16 @@ def fetch_optimizer(optimizer_config: OptimizerConfig):
             beta_1 = as_Kfloat(optimizer_config.beta_1),
             beta_2 = as_Kfloat(optimizer_config.beta_2),
             epsilon = as_Kfloat(optimizer_config.epsilon),
+        )
+    elif isinstance(optimizer_config, NLCGConfig):
+        optimizer = NLCGOptimizer(
+            alpha=as_Kfloat(0.01),
+            epsilon=as_Kfloat(1e-7)
+        )
+    elif isinstance(optimizer_config, CustomConfig):
+        optimizer = CustomOptimizer(
+            alpha=as_Kfloat(0.01),
+            epsilon=as_Kfloat(1e-7)
         )
     else:
         raise ValueError("Optimizer not defined.")
