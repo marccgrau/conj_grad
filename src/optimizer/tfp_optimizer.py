@@ -2,6 +2,8 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
 from keras.datasets import mnist
+from src.optimizer.nlcg_tfp_optimizer import minimize as nlcg_minimize
+
 keras = tf.keras
 
 keras.backend.set_floatx("float64")
@@ -218,9 +220,14 @@ if __name__ == "__main__":
     #init_params = tf.dynamic_stitch(func.idx, pred_model.trainable_variables)
     init_params = tf.dynamic_stitch(func.idx, model.trainable_variables)
 
-    # train the model with L-BFGS solver
-    results = tfp.optimizer.bfgs_minimize(
-        value_and_gradients_function=func, initial_position=init_params, max_iterations=100
+    # train the model with L-BFGS algorithm
+    #results = tfp.optimizer.bfgs_minimize(
+    #    value_and_gradients_function=func, initial_position=init_params, max_iterations=100
+    #    )
+    
+    # train the model with NLCG algorithm
+    results = nlcg_minimize(
+        value_and_gradients_function=func, initial_position=init_params, max_iter=100
         )
 
     # after training, the final optimized parameters are still in results.position
