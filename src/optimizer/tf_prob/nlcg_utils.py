@@ -163,11 +163,11 @@ def line_search_step(state, value_and_gradients_function, search_direction,
     """
     line_search_value_grad_func = _restrict_along_direction(
         value_and_gradients_function, state.position, search_direction)
-    derivative_at_start_pt = tf.reduce_sum(
-        state.objective_gradient * search_direction, axis=-1)
+    #derivative_at_start_pt = tf.reduce_sum(
+    #    state.objective_gradient * search_direction, axis=-1)
     val_0 = ValueAndGradient(x=_broadcast(0, state.position),
                             f=state.objective_value,
-                            df=state.objective_gradient,)
+                            df=state.search_direction,)
                             #full_gradient=state.objective_gradient)
     inactive = state.failed | state.converged
     ls_result = hager_zhang(

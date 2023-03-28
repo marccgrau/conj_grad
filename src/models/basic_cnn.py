@@ -27,6 +27,13 @@ class BasicCNN(tf.keras.Model):
         self.flatten = tf.keras.layers.Flatten()
         self.fc1 = tf.keras.layers.Dense(units=256, activation="relu")
         self.fc2 = tf.keras.layers.Dense(units=num_classes, activation="softmax")
+        
+    def train_step(self, data):
+        # fetch data 
+        x, y = data
+        # apply updates from optimizer
+        tempmodel = self.optimizer.apply_gradients(self.trainable_variables, x, y)
+        self.set_weights(tempmodel.get_weights())
     
     def call(self, inputs, training=None, **kwargs):
         x = self.conv1(inputs)

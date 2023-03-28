@@ -1,7 +1,15 @@
 import warnings
 import numpy as np
+import tensorflow as tf
 
-def wolfe_line_search(f, f_grad, xk, pk, c1=1e-4, c2=0.9, amax=None, maxiter=10):
+#TODO: quite probably the model should be passed along as function and the gradients \
+#      could be computed potentially computed within and do not have to be passed as a callable \
+#      But how is this gonna work without the loss being passed as a callable?
+
+#TODO: Check where one has to put tf.function decorators
+
+@tf.function
+def wolfe_line_search(f, f_grad, xk, dk, c1=1e-4, c2=0.1, amax=1.0, maxiter=10):
     """
     Find alpha that satisfies the strong Wolfe conditions.
     
@@ -11,9 +19,9 @@ def wolfe_line_search(f, f_grad, xk, pk, c1=1e-4, c2=0.9, amax=None, maxiter=10)
         Objective function.
     f_grad: callable f'(x)
         Gradient of the objective function.
-    xk: ndarray
+    xk: tf.Tensor
         Starting point.
-    pk: ndarray
+    dk: tf.Tensor
         Search direction.
     c1: float, optional
         Parameter for the sufficient decrease condition. (Armijo condition rule)
@@ -32,14 +40,19 @@ def wolfe_line_search(f, f_grad, xk, pk, c1=1e-4, c2=0.9, amax=None, maxiter=10)
     phi: float or None
         New function value ``f(x_new) = f(x0 + alpha * pk)``
         or None if the line search did not converge.
-           
-        """
         
-    def phi(alpha):
-        return f(xk + alpha * pk)
+        """
     
+    
+    #TODO: Make sure all tf.Tensors as inputs
+    @tf.function
+    def phi(alpha):
+        return f(xk + alpha * dk)
+    
+    #TODO: Either tape.gradient as input for f_grad or compute it here
+    @tf.function
     def derphi(alpha):
-        return np.dot(f_grad(xk + alpha * pk), pk)
+        return tf.tensordot(f_grad(xk + alpha * dk), dk)
     
     alpha_star, phi_star, derphi_star = wolfe_line_search_2(phi, derphi, c1, c2, amax, maxiter)
     
@@ -48,10 +61,11 @@ def wolfe_line_search(f, f_grad, xk, pk, c1=1e-4, c2=0.9, amax=None, maxiter=10)
     
     return alpha_star, phi_star
 
+@tf.function
 def wolfe_line_search_2(phi, derphi, c1=1e-4, c2=0.9, amax=None, maxiter=10):
     """
     Find alpha that satisfies strong Wolfe conditions.
-    alpha > 0 is assumed to be a descent direction.
+    alpha > 0 is assumed to be a descent direction. #NOTE: Not always the case for Polak-Ribiere
     Parameters
     ----------
     phi: callable phi(alpha)
@@ -76,79 +90,86 @@ def wolfe_line_search_2(phi, derphi, c1=1e-4, c2=0.9, amax=None, maxiter=10):
         derphi at alpha_star, or None if the line search algorithm
         did not converge.
     """
-    phi0 = phi(0.)
-    derphi0 = derphi(0.)
+    phi0, derphi0 =
     
     alpha0 = 0.
     alpha1 = 1.
     
     if amax is not None:
-        alpha1 = min(alpha1, amax)
+        alpha1 = tf.math.minimum(alpha1, amax)
     
     phi_a1 = phi(alpha1)
-       
+    
     phi_a0 = phi0
     derphi_a0 = derphi0
     
-    for i in range(maxiter):
-        if alpha1 == 0 or (amax is not None and alpha0 == amax):
+    for i in tf.range(maxiter):
+        if tf.math.logical_or(tf.math.equal(alpha1, 0), tf.math.logical_and(amax is not None, tf.math.equal(alpha0, amax))):
             alpha_star = None
             phi_star = phi0
             derphi_star = None
             
-            if alpha1 == 0:
+            if tf.math.equal(alpha1, 0):
                 warnings.warn('Rounding errors preventing line search from converging')
             else:
                 warnings.warn(f'Line search could not find solution less than or equal to {amax}')
             break
         
-        if (phi_a1 > phi0 + c1 * alpha1 * derphi0) or ((phi_a1 >= phi_a0) and (i > 1)):
+        # test first condition of line search as illustrated in paper
+        if tf.math.logical_or(tf.math.greater(phi_a1, phi0 + c1 * alpha1 * derphi0), tf.math.logical_and(tf.math.greater_equal(phi_a1, phi_a0), tf.math.greater(i, 1))):
             alpha_star, phi_star, derphi_star = _zoom(alpha0,
-                                                      alpha1,
-                                                      phi_a0,
-                                                      phi_a1, 
-                                                      derphi_a0, 
-                                                      phi, 
-                                                      derphi,
-                                                      phi0, 
-                                                      derphi0, 
-                                                      c1, 
-                                                      c2,
-                                                      )
+                                                    alpha1,
+                                                    phi_a0,
+                                                    phi_a1, 
+                                                    derphi_a0, 
+                                                    phi, 
+                                                    derphi,
+                                                    phi0, 
+                                                    derphi0, 
+                                                    c1, 
+                                                    c2,
+                                                    )
             break
         
-        derphi_a1 = derphi(alpha1)
-        if (abs(derphi_a1) <= -c2 * derphi0):
-            alpha_star = alpha1
-            phi_star = phi(alpha1)
+        # test second condition of line search
+        derphi_a1 = derphi(alpha1) # necessary for testing second condition
+        if tf.math.lower_equal(tf.math.abs(derphi_a1), -c2 * derphi0):
+            alpha_star = alpha1 # suitable alpha found set to star and return
+            phi_star = phi(alpha1) 
             derphi_star = derphi_a1
             break
         
+        # check for third condition
         if (derphi_a1 >= 0):
             alpha_star, phi_star, derphi_star = _zoom(alpha1,
-                                                      alpha0,
-                                                      phi_a1,
-                                                      phi_a0,
-                                                      derphi_a1,
-                                                      phi,
-                                                      derphi,
-                                                      phi0,
-                                                      derphi0,
-                                                      c1,
-                                                      c2,
-                                                      )
+                                                    alpha0,
+                                                    phi_a1,
+                                                    phi_a0,
+                                                    derphi_a1,
+                                                    phi,
+                                                    derphi,
+                                                    phi0,
+                                                    derphi0,
+                                                    c1,
+                                                    c2,
+                                                    )
             break
         
+        # extrapolation step of alpha_i as no conditions are met
+        # simple procedure to mulitply alpha by 2
         alpha2 = 2*alpha1
+        # check if we don't overshoot amax
         if amax is not None:
             alpha2 = min(alpha2,amax)
         
+        # update values for next iteration to check conditions
         alpha0 = alpha1
         alpha1 = alpha2
         phi_a0 = phi_a1
         phi_a1 = phi(alpha1)
         derphi_a0 = derphi_a1
-        
+    
+    # if no break occurs, then we have not found a suitable alpha after maxiter
     else:
         alpha_star = alpha1
         phi_star = phi_a1
@@ -208,7 +229,7 @@ def _quadmin(a, fa, fpa, b, fb):
     return xmin
 
 def _zoom(a_lo, a_hi, phi_lo, phi_hi, derphi_lo,
-          phi, derphi, phi0, derphi0, c1, c2):
+        phi, derphi, phi0, derphi0, c1, c2):
     """
     Zoom stage of approximate linesearch satisfying strong Wolfe conditions.
     """
@@ -286,7 +307,7 @@ def _zoom(a_lo, a_hi, phi_lo, phi_hi, derphi_lo,
             break
     return a_star, val_star, valprime_star
 
-def nonlinear_cg(f, f_grad, init, method='FR', c1=1e-4, c2=0.1, amax=None, tol=1e-7, max_iter=1000):
+def nonlinear_cg(f, f_grad, init, method='PR', c1=1e-4, c2=0.1, amax=None, tol=1e-7, max_iter=1000):
     """
     Non Linear Conjugate Gradient Method for optimization problem.
     Given a starting point x ∈ ℝⁿ.
@@ -377,5 +398,3 @@ def nonlinear_cg(f, f_grad, init, method='FR', c1=1e-4, c2=0.1, amax=None, tol=1
         print(f'Solution: y = {y}, x = {x}')
     
     return np.array(curve_x), np.array(curve_y)
-    
-    

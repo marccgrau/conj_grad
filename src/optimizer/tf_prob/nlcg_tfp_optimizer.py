@@ -4,7 +4,7 @@ from tensorflow_probability.python.internal import distribution_util
 from tensorflow_probability.python.internal import prefer_static as ps
 from tensorflow_probability.python.internal import dtype_util
 
-from src.optimizer import nlcg_utils
+from src.optimizer.tf_prob import nlcg_utils
 
 NlcgOptimizerResults = collections.namedtuple(
     'NlcgOptimizerResults', [

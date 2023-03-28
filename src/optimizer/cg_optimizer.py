@@ -1,321 +1,357 @@
-from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import state_ops
-from tensorflow.python.framework import ops
-from tensorflow.python.training import training_ops
 import tensorflow as tf
-from tensorflow.keras.optimizers.experimental import Optimizer
-
-class NLCGOptimizer(Optimizer):
-    """
-    Would require to initially set weights and loss
-    
-    optimizer.set_weights({'f_prev': initial_loss, 'x_prev': initial_weights})
-    
-    These would serve as first inputs to the optimizer.
-
-    """
-    def __init__(self, alpha=0.01, epsilon=1e-7, use_locking=False, name="NLCGOptimizer", **kwargs):
-        super(NLCGOptimizer, self).__init__(use_locking, name, **kwargs)
-        self.alpha = alpha
-        self.epsilon = epsilon
-    
-    def _create_slots(self, var_list):
-        for var in var_list:
-            self.add_slot(var, 'previous_grad')
-    
-    # armijo-goldstein line search
-    def _line_search(self, f0, x0, p, alpha, beta, max_iters):
-        f_prev, x_prev = f0, x0
-        for i in range(max_iters):
-            fx, _, _ = self._resource_apply_dense(p, x_prev)
-            if fx > f_prev:
-                break
-            alpha *= beta
-            f_prev, x_prev = fx, x_prev + alpha * p
-        return f_prev, x_prev, alpha
-    
-    def line_search_wolfe(f, x, grad, direction, c1=1e-4, c2=0.9, max_iters=20):
-        """
-        Backtracking line search that satisfies the Wolfe conditions.
-        
-        Parameters:
-            f (callable): Objective function.
-            x (tf.Tensor): Current point.
-            grad (tf.Tensor): Gradient of objective function at current point.
-            direction (tf.Tensor): Search direction.
-            c1 (float): Armijo-Goldstein parameter.
-            c2 (float): Curvature parameter.
-            max_iters (int): Maximum number of iterations.
-            
-        Returns:
-            alpha (tf.Tensor): Step size.
-        """
-        alpha = tf.constant(1.0, dtype=x.dtype)
-        fx, _, _ = f(x)
-        gx = tf.reduce_sum(grad * direction)
-        
-        for i in range(max_iters):
-            x_next = x + alpha * direction
-            fx_next, gx_next, _ = f(x_next)
-            if fx_next > fx + c1 * alpha * gx or (i > 0 and fx_next >= fx_next_prev):
-                # Armijo-Goldstein condition not satisfied, or objective function not decreasing
-                alpha_low = 0.0
-                alpha_high = alpha
-                for j in range(10):
-                    alpha = (alpha_low + alpha_high) / 2.0
-                    x_next = x + alpha * direction
-                    fx_next, gx_next, _ = f(x_next)
-                    if fx_next > fx + c1 * alpha * gx or fx_next >= fx_next_prev:
-                        alpha_high = alpha
-                    else:
-                        gx_next = tf.reduce_sum(grad(x_next) * direction)
-                        if gx_next <= c2 * gx:
-                            return alpha
-                        alpha_low = alpha
-                return alpha
-            gx_next = tf.reduce_sum(grad(x_next) * direction)
-            if tf.abs(gx_next) <= -c2 * gx:
-                return alpha
-            if gx_next >= 0:
-                # Curvature condition not satisfied, zoom in
-                alpha_low = alpha
-                alpha_high = alpha_prev
-                for j in range(10):
-                    alpha = (alpha_low + alpha_high) / 2.0
-                    x_next = x + alpha * direction
-                    fx_next, gx_next, _ = f(x_next)
-                    if fx_next > fx + c1 * alpha * gx or fx_next >= fx_next_prev:
-                        alpha_high = alpha
-                    else:
-                        gx_next = tf.reduce_sum(grad(x_next) * direction)
-                        if tf.abs(gx_next) <= -c2 * gx:
-                            return alpha
-                        if gx_next * (alpha_high - alpha_low) >= 0:
-                            alpha_high = alpha_low
-                        alpha_low = alpha
-                return alpha
-            alpha_prev = alpha
-            fx_next_prev = fx_next
-        
-        return alpha
-
-    def _resource_apply_dense(self, grad, var):
-        previous_grad = self.get_slot(var, 'previous_grad')
-        if previous_grad is None:
-            previous_grad = var.assign(tf.zeros_like(var))
-        g_norm_squared = tf.reduce_sum(tf.square(grad))
-        if g_norm_squared == 0:
-            return tf.no_op()
-        if previous_grad is None:
-            previous_grad = tf.zeros_like(var)
-        beta = tf.reduce_sum(grad * (grad - previous_grad)) / tf.maximum(tf.reduce_sum(tf.square(previous_grad)), self._get_hyper('epsilon'))
-        direction = -grad + beta * previous_grad
-        alpha = self._get_hyper('alpha')
-        f_prev = self._get_hyper('f_prev')
-        x_prev = self._get_hyper('x_prev')
-        fx, x_next, alpha = self._line_search(f_prev, x_prev, direction, alpha, 0.1, 10)
-        var_update = training_ops.resource_apply_gradient_descent(var.handle, x_next - var, use_locking=self._use_locking)
-        previous_grad.assign(grad)
-        self._set_hyper('f_prev', fx)
-        self._set_hyper('x_prev', x_next)
-        self._set_hyper('alpha', alpha)
-        return var_update
-    
-    def get_config(self):
-        config = super(NLCGOptimizer, self).get_config()
-        config.update({
-            'alpha': self._serialize_hyperparameter('alpha'),
-            'epsilon': self._serialize_hyperparameter('epsilon')
-        })
-        return config
-    
-    
-    # other solution
-    def minimize(self, loss, var_list):
-        grads = self.get_gradients(loss, var_list)
-        updates = []
-        prev_dir = tf.zeros_like(var_list)
-        prev_grad = tf.zeros_like(var_list)
-
-        for i, (grad, var) in enumerate(zip(grads, var_list)):
-            prev_grad_i = tf.gather(prev_grad, i)
-            prev_dir_i = tf.gather(prev_dir, i)
-
-            # Compute the new search direction
-            if i == 0:
-                dir_i = -grad
-            else:
-                beta_i = tf.reduce_sum(grad * (grad - prev_grad_i)) / tf.reduce_sum(prev_dir_i * (grad - prev_grad_i))
-                dir_i = -grad + beta_i * prev_dir_i
-
-            # Compute the step size using line search
-            step_size_i = self._line_search(loss, var, dir_i, grad)
-
-            # Update the variable
-            new_var_i = var + step_size_i * dir_i
-            updates.append(tf.assign(var, new_var_i))
-
-            # Update the previous gradient and search direction
-            new_prev_grad_i = grad
-            new_prev_dir_i = dir_i
-            # update into existing tensor according to indices
-            prev_grad = tf.tensor_scatter_nd_update(prev_grad, [[i]], [new_prev_grad_i])
-            prev_dir = tf.tensor_scatter_nd_update(prev_dir, [[i]], [new_prev_dir_i])
-
-        self._updates = updates
-        return self._updates
-
-    def _line_search(self, loss, var, direction, grad):
-        step_size = tf.constant(1.0, dtype=tf.float32)
-        loss_init = loss()
-
-        while True:
-            new_var = var + step_size * direction
-            tf.keras.backend.update(var, new_var)
-            loss_new = loss()
-
-            if loss_new > loss_init + self.alpha * step_size * tf.reduce_sum(grad * direction):
-                step_size *= self.beta
-            else:
-                break
-
-        return step_size
+import warnings
+import numpy as np
 
 
-
-class NonlinearCG_PRP_Wolfe(optimizer.Optimizer):
-    """
-    Nonlinear conjugate gradient optimizer with Polak-Ribière-Polyak version and Wolfe line search.
-    """
-    
-    def __init__(self, alpha=1.0, beta=0.5, c1=1e-4, c2=0.9, **kwargs):
-        """
-        Constructor.
-        
-        Parameters:
-            alpha (float): Initial step size.
-            beta (float): Restart parameter.
-            c1 (float): Armijo-Goldstein parameter.
-            c2 (float): Curvature parameter.
-        """
-        super().__init__(**kwargs)
-        self.alpha = alpha
-        self.beta = beta
+class NonlinearCG(tf.keras.optimizers.Optimizer):
+    def __init__(self, model, loss, max_iters=1000, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
+        super().__init__(name, **kwargs)
+        self.max_iters = max_iters
+        self.tol = tol
         self.c1 = c1
         self.c2 = c2
-    
-    def _create_slots(self, var_list):
-        for var in var_list:
-            self.add_slot(var, 'prev_grad')
-            self.add_slot(var, 'prev_direction')
-            
-    def _backtrack_wolfe(self, f, x, grad, direction, alpha, phi, phi_0, phi_prime_0, c1, c2, maxiter=10):
-        """
-        Perform a backtracking search to find the step size that satisfies the Wolfe conditions.
+        self.amax = tf.Variable(amax, dtype=tf.float32)
+        self.model = model
+        self.weights = self._pack_weights(model.trainable_variables)
+        self.loss = loss
+        self.objective_tracker = 0
+        self.grad_tracker = 0
         
-        Parameters:
-            f (function): The loss function to optimize.
-            x (tf.Variable): The current variable values.
-            grad (tf.Tensor): The gradient of the loss with respect to the variables.
-            direction (tf.Tensor): The search direction.
-            alpha (float): The current step size.
-            phi (float): The value of the loss function at x + alpha * direction.
-            phi_0 (float): The value of the loss function at x.
-            phi_prime_0 (float): The value of the directional derivative of the loss at x.
-            c1 (float): Armijo-Goldstein parameter.
-            c2 (float): Curvature parameter.
-            maxiter (int): The maximum number of iterations to perform.
-            
-        Returns:
-            float: The step size that satisfies the Wolfe conditions.
+    # pack model into 1D tensor
+    def _pack_weights(self, weights) -> tf.Tensor:
+        return tf.concat([tf.reshape(g, [-1]) for g in weights], axis=0)
+
+    # unpack model from 1D tensor
+    def _unpack_weights(self, packed_weights):
+        i = 0
+        unpacked = []
+        for layer in self.model.layers:
+            for current in layer.weights:
+                length = tf.math.reduce_prod(current.shape)
+                unpacked.append(
+                    tf.reshape(packed_weights[i : i + length], current.shape)
+                )
+                i += length
+        return unpacked
+
+    def _objective_call(self, weights, x, y):
+        # 1D Tensor to model weights and set for model
+        #self.model.set_weights(self._unpack_weights(weights))
+        self.objective_tracker += 1
+        return self.loss(y, self.model(x))
+    
+    def _gradient_call(self, weights, x, y):
+        # 1D Tensor to model weights and set for model
+        #self.model.set_weights(self._unpack_weights(weights))
+        with tf.GradientTape() as tape:
+            loss_value = self.loss(y, self.model(x))
+        grads = tape.gradient(loss_value, self.model.trainable_variables)
+        self.grad_tracker += 1
+        self.objective_tracker += 1
+        return self._pack_weights(grads)
+    
+    def _obj_func_and_grad_call(self, weights, x, y):
+        #self.model.set_weights(self._unpack_weights(weights))
+        with tf.GradientTape() as tape:
+            loss_value = self.loss(y, self.model(x))
+        grads = tape.gradient(loss_value, self.model.trainable_variables)
+        self.grad_tracker += 1
+        self.objective_tracker += 1
+        return loss_value, self._pack_weights(grads)
+    
+    # Crucial, final update of model weights after optimization
+    # Final status of iteration step for both weights and model
+    def _save_new_model_weights(self, weights) -> None:
+        self.weights = weights
+        self.model.set_weights(self._unpack_weights(weights))
+        
+    def update_step(self, x, y):
+        iters = 0 
+        obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
+        r = -grad
+        d = r
+        while iters < self.max_iters:
+            # Perform line search to determine alpha_star
+            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
+            # update weights along search directions
+            w_new = self.weights + alpha * d
+            # get new objective value and gradient
+            obj_val_new, grad_new = self._obj_func_and_grad_call(w_new, x, y)
+            # set r_{k+1}
+            r_new = -grad_new
+            # Calculate Polak-Ribiére beta
+            beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(tf.multiply(r, r))
+            # Determine new search direction for next iteration step
+            d_new = r_new + beta * d
+            # Check for convergence
+            if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
+                break
+            tf.print("Iteration: ", iters, "Objective Value: ", obj_val_new)
+            # Store new weights and set them for the model
+            self._save_new_model_weights(w_new)
+            # Set new values as old values for next iteration step
+            grad = grad_new
+            r = r_new
+            d = d_new
+            obj_val = obj_val_new
+            iters += 1
+    
+    def apply_gradients(self, vars, x,y):
+        self.update_step(x, y)
+        for var in vars:
+            var.assign(self._unpack_weights(self.model.weights))
+        return self.model
+        
+    
+    def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
         """
+        Find alpha that satisfies strong Wolfe conditions.
+        alpha > 0 is assumed to be a descent direction. #NOTE: Not always the case for Polak-Ribiere
+        Parameters
+        ----------
+        c1: float, optional
+            Parameter for Armijo condition rule.
+        c2: float, optional
+            Parameter for curvature condition rule.
+        amax: float, optional
+            Maximum step size.
+        maxiter: int, optional
+            Maximum number of iterations.
+        search_direction: tf.Tensor, optional
+            Search direction for line search determined by previous iteration step.
+        Returns
+        -------
+        alpha_star: float or None
+            Best alpha, or None if the line search algorithm did not converge.
+        """
+        
+        # Leaving the weights as is, is the equivalent of setting alpha to 0
+        # Thus, we get objective value at 0 and the gradient at 0        
+        phi0 = self._objective_call(self.weights, x, y)
+        # We need the directional derivative at 0 following the Wolfe Conditions
+        # Thus, we get the gradient at 0 and multiply it with the search direction
+        derphi0 = self._gradient_call(self.weights, x, y) * search_direction
+        
+        # Set alpha bounds
+        alpha0 = tf.Variable(0, dtype='float32')
+        alpha1 = tf.Variable(1, dtype='float32')
+        # Optional setting of an alpha max, if defined
+        if self.amax is not None:
+            alpha1 = tf.math.minimum(alpha1, self.amax)
+        
+        # get objective value at a new possible position, i.e. w_k + alpha1 * d_k
+        phi_a1 = self._objective_call(self.weights + alpha1 * search_direction, x, y)
+        
+        # Initial alpha_lo equivalent to alpha = 0
+        phi_a0 = phi0
+        derphi_a0 = derphi0
+        
+        
+        # Initiate line search by checking for the three conditions as defined in paper
         for i in range(maxiter):
-            alpha *= 0.5
-            x_next = x + alpha * direction
-            phi = f(x_next)
-            phi_prime = tf.reduce_sum(grad(x_next) * direction)
             
-            # Armijo-Goldstein condition
-            if phi > phi_0 + c1 * alpha * phi_prime_0:
-                return self._backtrack_wolfe(f, x, grad, direction, alpha, phi, phi_0, phi_prime_0, c1, c2)
+            if (alpha1 == tf.Variable(0, dtype='float32') or alpha0 == self.amax):
+            #if tf.math.logical_or(tf.math.equal(alpha1, tf.Variable(0.)), tf.math.equal(alpha0, self.amax)):
+                alpha_star = None
+                #phi_star = phi0
+                #derphi_star = None
+                
+                if alpha1 == 0:
+                #if tf.math.equal(alpha1, 0):
+                    warnings.warn('Rounding errors preventing line search from converging')
+                else:
+                    warnings.warn(f'Line search could not find solution less than or equal to {self.amax}')
+                break
             
-            # Curvature condition
-            if phi_prime < c2 * phi_prime_0:
-                return self._backtrack_wolfe(f, x, grad, direction, alpha, phi, phi_0, phi_prime_0, c1, c2)
+            # First condition: phi(alpha_i) > phi(0) + c1 * alpha_i * phi'(0) or [phi(alpha_i) >= phi(alpha_{i-1}) and i > 1]
+            if (phi_a1 > phi0 + self.c1 * alpha1 * derphi0 or (phi_a1 >= phi_a0 and i > 1)):
+            #if tf.math.logical_or(tf.math.greater(phi_a1, phi0 + self.c1 * alpha1 * derphi0), tf.math.logical_and(tf.math.greater_equal(phi_a1, phi_a0), tf.math.greater(i, 1))):
+                alpha_star = self._zoom(alpha0,
+                                                        alpha1,
+                                                        phi_a0,
+                                                        phi_a1, 
+                                                        derphi_a0,
+                                                        phi0, 
+                                                        derphi0, 
+                                                        search_direction,
+                                                        x,
+                                                        y,
+                                                        )
+                break
             
-        return alpha
-    
-    def _line_search_wolfe(self, f, x, grad, direction, c1, c2, maxiter=10):
-        """
-        Perform a line search to find the step size that satisfies the Wolfe conditions.
+            # Second condition: |phi'(alpha_i)| <= -c2 * phi'(0)
+            derphi_a1 = self._gradient_call(self.weights + alpha1 * search_direction, x, y) * search_direction
+            if derphi_a1 <= -self.c2 * derphi0:
+            #if tf.math.lower_equal(tf.math.abs(derphi_a1), -self.c2 * derphi0):
+                alpha_star = alpha1 # suitable alpha found set to star and return
+                phi_star = self._objective_call(self.weights + alpha_star * search_direction, x, y)
+                derphi_star = derphi_a1
+                break
+            
+            # Third condition: phi'(alpha_i) >= 0
+            if derphi_a1 >= 0:
+            #if (tf.math.greater_equal(derphi_a1, 0)):
+                alpha_star = self._zoom(alpha1,
+                                                        alpha0,
+                                                        phi_a1,
+                                                        phi_a0,
+                                                        derphi_a1,
+                                                        phi0,
+                                                        derphi0,
+                                                        search_direction,
+                                                        x,
+                                                        y,
+                                                        )
+                break
+            
+            # extrapolation step of alpha_i as no conditions are met
+            # simple procedure to mulitply alpha by 2
+            alpha2 = 2*alpha1
+            # check if we don't overshoot amax
+            if self.amax is not None:
+                alpha2 = np.min(alpha2, self.amax)
+                #alpha2 = tf.math.minimum(alpha2,self.amax)
+            
+            # update values for next iteration to check conditions
+            alpha0 = alpha1
+            alpha1 = alpha2
+            phi_a0 = phi_a1
+            phi_a1 = self._objective_call(self.weights + alpha1 * search_direction, x, y)
+            derphi_a0 = derphi_a1
         
-        Parameters:
-            f (function): The loss function to optimize.
-            x (tf.Variable): The current variable values.
-            grad (tf.Tensor): The gradient of the loss with respect to the variables.
-            direction (tf.Tensor): The search direction.
-            c1 (float): Armijo-Goldstein parameter.
-            c2 (float): Curvature parameter.
-            maxiter (int): The maximum number of iterations to perform.
-            
-        Returns:
-            float: The step size that satisfies the Wolfe conditions.
-        """
-        alpha = 1.0
-        phi_0 = f(x)
-        phi_prev = phi_0
-        phi_prime_0 = tf.reduce_sum(grad * direction)
-        
-        for i in range(maxiter):
-            x_next = x + alpha * direction
-            phi = f(x_next)
-            phi_prime = tf.reduce_sum(grad(x_next) * direction)
-            
-            # Armijo-Goldstein condition
-            if phi > phi_0 + c1 * alpha * phi_prime_0 or (phi >= phi_prev and i > 0):
-                return self._backtrack_wolfe(f, x, grad, direction, alpha, phi, phi_0, phi_prime_0, c1, c2)
-            
-            # Curvature condition
-            if phi_prime < c2 * phi_prime_0:
-                return self._backtrack_wolfe(f, x, grad, direction, alpha, phi, phi_0, phi_prime_0, c1, c2)
-            
-            phi_prev = phi
-            alpha *= 2.0
-        
-        return alpha
-    
-    @tf.function
-    def _resource_apply_dense(self, grad, var):
-        prev_grad = self.get_slot(var, 'prev_grad')
-        prev_direction = self.get_slot(var, 'prev_direction')
-        
-        # Compute direction
-        if prev_grad is None or prev_direction is None:
-            direction = -grad
+        # if no break occurs, then we have not found a suitable alpha after maxiter
         else:
-            beta_PRP = tf.reduce_sum((grad - prev_grad) * grad) / tf.reduce_sum(prev_grad * prev_grad)
-            beta = tf.maximum(beta_PRP, 0.0)
-            direction = -grad + beta * prev_direction
+            alpha_star = alpha1
+            warnings.warn('Line search did not converge')
         
-        # Perform line search
-        f = lambda x: (self._optimizer._loss(x), grad, var)
-        alpha = self._line_search_wolfe(f, var, grad, direction, self.c1, self.c2)
-        
-        # Update variables and slots
-        var.assign_add(alpha * direction)
-        self.get_slot(var, 'prev_grad').assign(grad)
-        self.get_slot(var, 'prev_direction').assign(direction)
+        return alpha_star
     
-    def _resource_apply_sparse(self, grad, var, indices):
-        raise NotImplementedError("Sparse gradients are not supported.")
+    def _zoom(self, a_lo, a_hi, phi_lo, phi_hi, derphi_lo, phi0, derphi0, search_direction, x, y):
+        """
+        Zoom stage of approximate line search satisfying strong Wolfe conditions.
+        """
+
+        maxiter = 10
+        i = 0
+        delta1 = 0.2  # cubic interpolant check
+        delta2 = 0.1  # quadratic interpolant check
+        phi_rec = phi0
+        a_rec = 0
+        while True:
+            # interpolate to find a trial step length between a_lo and
+            # a_hi Need to choose interpolation here. Use cubic
+            # interpolation and then if the result is within delta *
+            # dalpha or outside of the interval bounded by a_lo or a_hi
+            # then use quadratic interpolation, if the result is still too
+            # close, then use bisection
+
+            dalpha = a_hi - a_lo
+            if dalpha < 0:
+                a, b = a_hi, a_lo
+            else:
+                a, b = a_lo, a_hi
+
+            # minimizer of cubic interpolant
+            # (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)
+            #
+            # if the result is too close to the end points (or out of the
+            # interval), then use quadratic interpolation with phi_lo,
+            # derphi_lo and phi_hi if the result is still too close to the
+            # end points (or out of the interval) then use bisection
+
+            if (i > 0):
+                cchk = delta1 * dalpha
+                a_j = self._cubicmin(a_lo, phi_lo, derphi_lo, a_hi, phi_hi,
+                                a_rec, phi_rec)
+            if (i == 0) or (a_j is None) or (a_j > b - cchk) or (a_j < a + cchk):
+                qchk = delta2 * dalpha
+                a_j = self._quadmin(a_lo, phi_lo, derphi_lo, a_hi, phi_hi)
+                if (a_j is None) or (a_j > b-qchk) or (a_j < a+qchk):
+                    a_j = a_lo + 0.5*dalpha
+
+            # Check new value of a_j
+
+            phi_aj = self._objective_call(self.weights + a_j * search_direction, x, y)
+            if (phi_aj > phi0 + self.c1*a_j*derphi0) or (phi_aj >= phi_lo):
+                phi_rec = phi_hi
+                a_rec = a_hi
+                a_hi = a_j
+                phi_hi = phi_aj
+            else:
+                derphi_aj = self._gradient_call(self.weights + a_j * search_direction, x, y) * search_direction
+                if tf.math.abs(derphi_aj) <= -self.c2*derphi0:
+                    a_star = a_j
+                    val_star = phi_aj
+                    valprime_star = derphi_aj
+                    break
+                if derphi_aj*(a_hi - a_lo) >= 0:
+                    phi_rec = phi_hi
+                    a_rec = a_hi
+                    a_hi = a_lo
+                    phi_hi = phi_lo
+                else:
+                    phi_rec = phi_lo
+                    a_rec = a_lo
+                a_lo = a_j
+                phi_lo = phi_aj
+                derphi_lo = derphi_aj
+            i += 1
+            if (i > maxiter):
+                # Failed to find a conforming step size
+                a_star = None
+                val_star = None
+                valprime_star = None
+                break
+        return a_star #, val_star, valprime_star
+
+    def _cubicmin(a, fa, fpa, b, fb, c, fc):
+        """
+        Finds the minimizer for a cubic polynomial that goes through the
+        points (a,fa), (b,fb), and (c,fc) with derivative at a of fpa.
+        If no minimizer can be found, return None.
+        """
+        # f(x) = A *(x-a)^3 + B*(x-a)^2 + C*(x-a) + D
+        try:
+            C = fpa
+            db = b - a
+            dc = c - a
+            denom = (db * dc) ** 2 * (db - dc)
+            d1 = tf.reshape((), (2, 2))
+            d1[0, 0] = dc ** 2
+            d1[0, 1] = -db ** 2
+            d1[1, 0] = -dc ** 3
+            d1[1, 1] = db ** 3
+            [A, B] = tf.tensordot(d1, tf.Tensor([fb - fa - C * db,
+                                            fc - fa - C * dc]).reshape([-1]))
+            A /= denom
+            B /= denom
+            radical = B * B - 3 * A * C
+            xmin = a + (-B + tf.math.sqrt(radical)) / (3 * A)
+        except ArithmeticError:
+            return None
+        if not tf.math.isfinite(xmin):
+            return None
+        return xmin
+    
+    def _quadmin(a, fa, fpa, b, fb):
+        """
+        Finds the minimizer for a quadratic polynomial that goes through
+        the points (a,fa), (b,fb) with derivative at a of fpa.
+        """
+        # f(x) = B*(x-a)^2 + C*(x-a) + D
+        try:
+            D = fa
+            C = fpa
+            db = b - a * 1.0
+            B = (fb - D - C * db) / (db * db)
+            xmin = a - C / (2.0 * B)
+        except ArithmeticError:
+            return None
+        if not tf.math.isfinite(xmin):
+            return None
+        return xmin
     
     def get_config(self):
-        config = super().get_config()
-        config.update({
-            'alpha': self.alpha,
-            'beta': self.beta,
-            'c1': self.c1,
-            'c2': self.c2,
-        })
-        return config
+        pass
+
+

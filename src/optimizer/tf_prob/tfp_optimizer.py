@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
 from keras.datasets import mnist
-from src.optimizer.nlcg_tfp_optimizer import minimize as nlcg_minimize
+from src.optimizer.tf_prob.nlcg_tfp_optimizer import minimize as nlcg_minimize
 
 keras = tf.keras
 

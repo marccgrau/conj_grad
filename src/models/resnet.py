@@ -15,20 +15,27 @@ class ResNetTypeI(tf.keras.Model):
                                                strides=2,
                                                padding="same")
 
-        self.layer1 = make_basic_block_layer(filter_num=64,
+        self.layer1 = make_basic_block_layer(num_filters=64,
                                              blocks=layer_params[0])
-        self.layer2 = make_basic_block_layer(filter_num=128,
+        self.layer2 = make_basic_block_layer(num_filters=128,
                                              blocks=layer_params[1],
                                              stride=2)
-        self.layer3 = make_basic_block_layer(filter_num=256,
+        self.layer3 = make_basic_block_layer(num_filters=256,
                                              blocks=layer_params[2],
                                              stride=2)
-        self.layer4 = make_basic_block_layer(filter_num=512,
+        self.layer4 = make_basic_block_layer(num_filters=512,
                                              blocks=layer_params[3],
                                              stride=2)
 
         self.avgpool = tf.keras.layers.GlobalAveragePooling2D()
         self.fc = tf.keras.layers.Dense(units=num_classes, activation=tf.keras.activations.softmax)
+        
+    def train_step(self, data):
+        # fetch data 
+        x, y = data
+        # apply updates from optimizer
+        tempmodel = self.optimizer.apply_gradients(self.trainable_variables, x, y)
+        self.set_weights(tempmodel.get_weights())
 
     def call(self, inputs, training=None, mask=None):
         x = self.conv1(inputs)
@@ -56,15 +63,15 @@ class ResNetTypeII(tf.keras.Model):
                                                strides=2,
                                                padding="same")
 
-        self.layer1 = make_bottleneck_layer(filter_num=64,
+        self.layer1 = make_bottleneck_layer(num_filters=64,
                                             blocks=layer_params[0])
-        self.layer2 = make_bottleneck_layer(filter_num=128,
+        self.layer2 = make_bottleneck_layer(num_filters=128,
                                             blocks=layer_params[1],
                                             stride=2)
-        self.layer3 = make_bottleneck_layer(filter_num=256,
+        self.layer3 = make_bottleneck_layer(num_filters=256,
                                             blocks=layer_params[2],
                                             stride=2)
-        self.layer4 = make_bottleneck_layer(filter_num=512,
+        self.layer4 = make_bottleneck_layer(num_filters=512,
                                             blocks=layer_params[3],
                                             stride=2)
 
