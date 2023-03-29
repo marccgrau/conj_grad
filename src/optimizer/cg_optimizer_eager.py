@@ -7,10 +7,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
     def __init__(self, model, loss, max_iters=1000, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
         super().__init__(name, **kwargs)
         self.max_iters = max_iters
-        self.tol = tf.constant(tol, dtype=tf.float32)
-        self.c1 = tf.constant(c1, dtype=tf.float32)
-        self.c2 = tf.constant(c2, dtype=tf.float32)
-        self.amax = tf.constant(amax, dtype=tf.float32)
+        self.tol = tol
+        self.c1 = c1
+        self.c2 = c2
+        self.amax = tf.Variable(amax, dtype=tf.float32)
         self.model = model
         self.weights = self._pack_weights(model.trainable_variables)
         self.loss = loss
@@ -72,7 +72,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         d = r
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
-            alpha = self.wolfe_line_search(maxiter=tf.Variable(10), search_direction=d, x=x, y=y)
+            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
             # update weights along search directions
             w_new = self.weights + alpha * d
             # get new objective value and gradient
@@ -102,7 +102,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             var.assign(self._unpack_weights(self.model.weights))
         return self.model
         
-    @tf.function
+    
     def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
         """
         Find alpha that satisfies strong Wolfe conditions.
@@ -124,7 +124,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         alpha_star: float or None
             Best alpha, or None if the line search algorithm did not converge.
         """
-        alpha_star = tf.Variable(0, dtype='float32')
+        
         # Leaving the weights as is, is the equivalent of setting alpha to 0
         # Thus, we get objective value at 0 and the gradient at 0        
         phi0 = self._objective_call(self.weights, x, y)
@@ -141,33 +141,30 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         
         # get objective value at a new possible position, i.e. w_k + alpha1 * d_k
         phi_a1 = self._objective_call(self.weights + alpha1 * search_direction, x, y)
-        derphi_a1 = self._gradient_call(self.weights + alpha1 * search_direction, x, y) * search_direction
         
         # Initial alpha_lo equivalent to alpha = 0
         phi_a0 = phi0
         derphi_a0 = derphi0
-        
-        @tf.function
-        def intitial_cond(alpha1, alpha0):
-            alpha_star.assign(0)
-            break_.assign(True)
+        i = 0
+        for i in range(maxiter):
+            #tf.cond(self.initial_cond(), lambda: break_ = True, lambda: None)
+            if (alpha1 == tf.Variable(0, dtype='float32') or alpha0 == self.amax):
+            #if tf.math.logical_or(tf.math.equal(alpha1, tf.Variable(0.)), tf.math.equal(alpha0, self.amax)):
+                alpha_star = None
+                #phi_star = phi0
+                #derphi_star = None
+                
+                if alpha1 == 0:
+                #if tf.math.equal(alpha1, 0):
+                    warnings.warn('Rounding errors preventing line search from converging')
+                else:
+                    warnings.warn(f'Line search could not find solution less than or equal to {self.amax}')
+                break_ = True
             
-            tf.cond(
-                tf.math.logical_or(tf.math.equal(alpha1, tf.Variable(0, dtype='float32')), tf.math.equal(alpha0, self.amax)),
-                true_fn = break_.assign(True),
-                false_fn = break_.assign(False),
-            )
-            
-            return alpha_star, break_
-        
-        @tf.function
-        def first_cond(alpha0, alpha1, phi_a0, phi_a1, derphi_a0, phi0, derphi0, search_direction, x, y, i):
-            alpha_star.assign(0)
-            break_.assign(True)
-            
-            tf.cond(
-                tf.math.logical_or(tf.math.greater(phi_a1, phi0 + self.c1 * alpha1 * derphi0), tf.math.logical_and(tf.math.greater_equal(phi_a1, phi_a0), tf.math.greater(i, 1))),
-                true_fn = alpha_star.assign(self._zoom(alpha0,
+            # First condition: phi(alpha_i) > phi(0) + c1 * alpha_i * phi'(0) or [phi(alpha_i) >= phi(alpha_{i-1}) and i > 1]
+            if (phi_a1 > phi0 + self.c1 * alpha1 * derphi0 or (phi_a1 >= phi_a0 and i > 1)):
+            #if tf.math.logical_or(tf.math.greater(phi_a1, phi0 + self.c1 * alpha1 * derphi0), tf.math.logical_and(tf.math.greater_equal(phi_a1, phi_a0), tf.math.greater(i, 1))):
+                alpha_star = self._zoom(alpha0,
                                                         alpha1,
                                                         phi_a0,
                                                         phi_a1, 
@@ -177,33 +174,22 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                                                         search_direction,
                                                         x,
                                                         y,
-                                                        )),
-                false_fn = break_.assign(False),
-            )
+                                                        )
+                break
             
-            return alpha_star, break_
-        
-        @tf.function
-        def second_cond(alpha1, derphi_a1, derphi0):
-            alpha_star.assign(0)
-            break_.assign(True)
+            # Second condition: |phi'(alpha_i)| <= -c2 * phi'(0)
+            derphi_a1 = self._gradient_call(self.weights + alpha1 * search_direction, x, y) * search_direction
+            if derphi_a1 <= -self.c2 * derphi0:
+            #if tf.math.lower_equal(tf.math.abs(derphi_a1), -self.c2 * derphi0):
+                alpha_star = alpha1 # suitable alpha found set to star and return
+                phi_star = self._objective_call(self.weights + alpha_star * search_direction, x, y)
+                derphi_star = derphi_a1
+                break
             
-            tf.cond(
-                tf.math.less_equal(tf.math.abs(derphi_a1), -self.c2 * derphi0),
-                true_fn=alpha_star.assign(alpha1),
-                false_fn=break_.assign(False),
-            )
-            
-            return alpha_star, break_
-        
-        @tf.function
-        def third_cond(alpha0, alpha1, phi_a0, phi_a1, derphi_a1, phi0, derphi0, search_direction, x, y):
-            alpha_star.assign(0)
-            break_.assign(True)
-            
-            tf.cond(
-                tf.math.greater_equal(derphi_a1, 0),
-                true_fn = alpha_star.assign(self._zoom(alpha1,
+            # Third condition: phi'(alpha_i) >= 0
+            if derphi_a1 >= 0:
+            #if (tf.math.greater_equal(derphi_a1, 0)):
+                alpha_star = self._zoom(alpha1,
                                                         alpha0,
                                                         phi_a1,
                                                         phi_a0,
@@ -213,33 +199,16 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                                                         search_direction,
                                                         x,
                                                         y,
-                                                    )),
-                false_fn = break_.assign(False)
-            )
-            
-            return alpha_star, break_
-        
-        '''
-        @tf.function
-        def while_cond(i, break_, alpha_star):
-            return tf.logical_and(tf.less(i, maxiter), tf.math.logical_not(break_), tf.math.less_equal(alpha_star, self.amax))
-        '''
-        
-        cond = lambda i, break_, alpha_star: tf.logical_and(tf.less(i, maxiter), tf.math.logical_not(break_), tf.math.less_equal(alpha_star, self.amax))
-        
-        @tf.function
-        def while_body():
-            alpha_star, break_ = intitial_cond(alpha1, alpha0)
-            alpha_star, break_ = first_cond(alpha0, alpha1, phi_a0, phi_a1, derphi_a0, phi0, derphi0, search_direction, x, y, i)
-            alpha_star, break_ = second_cond(derphi_a1, derphi0)
-            alpha_star, break_ = third_cond(alpha0, alpha1, phi_a0, phi_a1, derphi_a1, phi0, derphi0, search_direction, x, y)
+                                                        )
+                break
             
             # extrapolation step of alpha_i as no conditions are met
             # simple procedure to mulitply alpha by 2
             alpha2 = 2*alpha1
             # check if we don't overshoot amax
             if self.amax is not None:
-                alpha2 = tf.math.minimum(alpha2, self.amax)
+                alpha2 = np.min(alpha2, self.amax)
+                #alpha2 = tf.math.minimum(alpha2,self.amax)
             
             # update values for next iteration to check conditions
             alpha0 = alpha1
@@ -247,17 +216,14 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             phi_a0 = phi_a1
             phi_a1 = self._objective_call(self.weights + alpha1 * search_direction, x, y)
             derphi_a0 = derphi_a1
-            
-            return i+1, break_, alpha_star     
-            
         
-        # Initiate line search by checking for the three conditions as defined in paper
-        break_ = tf.Variable(False, dtype='bool')
-        i = tf.Variable(0, dtype='int32')
-        result = tf.while_loop(cond=cond, body=while_body, loop_vars=[0, False, 0.])
-        return result['alpha_star']
+        # if no break occurs, then we have not found a suitable alpha after maxiter
+        else:
+            alpha_star = alpha1
+            warnings.warn('Line search did not converge')
         
-    @tf.function
+        return alpha_star
+    
     def _zoom(self, a_lo, a_hi, phi_lo, phi_hi, derphi_lo, phi0, derphi0, search_direction, x, y):
         """
         Zoom stage of approximate line search satisfying strong Wolfe conditions.
