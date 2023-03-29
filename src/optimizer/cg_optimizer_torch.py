@@ -1,16 +1,15 @@
-import tensorflow as tf
-import warnings
+import torch
 import numpy as np
 
 
-class NonlinearCG(tf.keras.optimizers.Optimizer):
+class NonlinearCG(torch.optim.Optimizer):
     def __init__(self, model, loss, max_iters=1000, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
-        super().__init__(name, **kwargs)
+        super(NonlinearCG, self).__init__(name, **kwargs)
         self.max_iters = max_iters
-        self.tol = tf.constant(tol, dtype=tf.float32)
-        self.c1 = tf.constant(c1, dtype=tf.float32)
-        self.c2 = tf.constant(c2, dtype=tf.float32)
-        self.amax = tf.constant(amax, dtype=tf.float32)
+        self.tol = tol
+        self.c1 = c1
+        self.c2 = c2
+        self.amax = amax
         self.model = model
         self.weights = self._pack_weights(model.trainable_variables)
         self.loss = loss
@@ -18,8 +17,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.grad_tracker = 0
         
     # pack model into 1D tensor
-    def _pack_weights(self, weights) -> tf.Tensor:
-        return tf.concat([tf.reshape(g, [-1]) for g in weights], axis=0)
+    def _pack_weights(self, weights) -> torch.Tensor:
+        return torch.concat([torch.reshape(g, [-1]) for g in weights], axis=0)
 
     # unpack model from 1D tensor
     def _unpack_weights(self, packed_weights):
@@ -27,9 +26,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         unpacked = []
         for layer in self.model.layers:
             for current in layer.weights:
-                length = tf.math.reduce_prod(current.shape)
+                length = torch.prod(current.shape)
                 unpacked.append(
-                    tf.reshape(packed_weights[i : i + length], current.shape)
+                    torch.reshape(packed_weights[i : i + length], current.shape)
                 )
                 i += length
         return unpacked
@@ -130,7 +129,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         phi0 = self._objective_call(self.weights, x, y)
         # We need the directional derivative at 0 following the Wolfe Conditions
         # Thus, we get the gradient at 0 and multiply it with the search direction
-        derphi0 = tf.tensordot(self._gradient_call(self.weights, x, y), search_direction, 1)
+        derphi0 = self._gradient_call(self.weights, x, y) * search_direction
         
         # Set alpha bounds
         alpha0 = tf.Variable(0, dtype='float32')
@@ -141,7 +140,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         
         # get objective value at a new possible position, i.e. w_k + alpha1 * d_k
         phi_a1 = self._objective_call(self.weights + alpha1 * search_direction, x, y)
-        derphi_a1 = tf.tensordot(self._gradient_call(self.weights + alpha1 * search_direction, x, y), search_direction, 1)
+        derphi_a1 = self._gradient_call(self.weights + alpha1 * search_direction, x, y) * search_direction
         
         # Initial alpha_lo equivalent to alpha = 0
         phi_a0 = phi0

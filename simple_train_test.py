@@ -2,11 +2,12 @@ import tensorflow as tf
 print("TensorFlow version:", tf.__version__)
 from src.models.model_archs import basic_cnn
 from src.optimizer.cg_optimizer import NonlinearCG
+from src.optimizer.cg_optimizer_eager import NonlinearCGEager
 import src.data.get_data as get_data
 from src.configs import experiment_configs
 from pathlib import Path
-keras = tf.keras
-K = keras.backend
+
+tf.config.run_functions_eagerly(True)
 
 if tf.config.list_physical_devices('GPU'):
   print("TensorFlow **IS** using the GPU")
@@ -33,11 +34,16 @@ if test_data is not None:
 model = basic_cnn(num_classes=10)
 model.build(input_shape=(1, 28, 28, 1))
 
+model.summary()
     
-loss = keras.losses.CategoricalCrossentropy()
+loss = tf.keras.losses.CategoricalCrossentropy()
 
-optimizer = NonlinearCG(model, loss)
+execution_mode = 'eager'
+if execution_mode == 'eager':
+    optimizer = NonlinearCGEager(model, loss)
+else:
+    optimizer = NonlinearCG(model, loss)
 
-model.compile(loss = loss, optimizer = optimizer, metrics = ['accuracy'])
+model.compile(loss = loss, optimizer = optimizer, metrics = ['accuracy'], run_eagerly=True)
 
-model.fit(train_data, epochs=5)
+model.fit(train_data, epochs=1)

@@ -12,6 +12,7 @@ from src.configs.configs import DataConfig
 keras = tf.keras
 K = keras.backend
 
+
 def _load_mnist(data_config: DataConfig):
     """
     Loads the MNIST dataset.
