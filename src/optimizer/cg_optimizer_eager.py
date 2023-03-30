@@ -59,8 +59,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self.objective_tracker += 1
         return loss_value, self._pack_weights(grads)
     
-    # Crucial, final update of model weights after optimization
-    # Final status of iteration step for both weights and model
     def _save_new_model_weights(self, weights) -> None:
         self.weights = weights
         self.model.set_weights(self._unpack_weights(weights))
@@ -96,6 +94,8 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             obj_val = obj_val_new
             iters += 1
     
+    # TODO: What to get back as update in train_step() method
+    # Use the var.assign() way
     def apply_gradients(self, vars, x,y):
         self.update_step(x, y)
         self.model.set_weights(self._unpack_weights(self.weights))

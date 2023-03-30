@@ -18,15 +18,17 @@ data_config = experiment_configs.data["MNIST"]
 data_config.path = Path('data')
 
 train_data, test_data = get_data.fetch_data(data_config)
+train_data = train_data.take(1000)
+test_data= test_data.take(128)
 train_data = train_data.cache()
 train_data = train_data.batch(
-    batch_size=100
+    batch_size=128
 )
 train_data = train_data.prefetch(tf.data.AUTOTUNE)
 
 if test_data is not None:
     test_data = test_data.batch(
-        batch_size=100
+        batch_size=128
     )
     test_data = test_data.cache()
     test_data = test_data.prefetch(tf.data.AUTOTUNE)
@@ -46,4 +48,11 @@ else:
 
 model.compile(loss = loss, optimizer = optimizer, metrics = ['accuracy'], run_eagerly=True)
 
-model.fit(train_data, epochs=1)
+model.fit(train_data, 
+          epochs=1,
+          validation_data=test_data,
+          )
+
+print("Evaluate on test data")
+results = model.evaluate(test_data, batch_size=128)
+print("test loss, test acc:", results)
