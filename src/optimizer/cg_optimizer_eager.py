@@ -6,7 +6,8 @@ import logging
 from tensorflow.keras import backend as K
 from src.utils.custom import as_Kfloat
 
-
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     def __init__(self, model, loss, max_iters=4, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
@@ -108,11 +109,13 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
             alpha = self.wolfe_line_search(maxiter=3, search_direction=d, x=x, y=y)
+            logger.info(f'alpha after line search: {alpha}')
             # update weights along search directions
             if alpha is None:
-                logging.warning("Line search did not converge. Stopping optimization.")
-                w_new = self.weights + 10e-3 * d
-                #break
+                logger.warning("Line search did not converge. Stopping optimization.")
+                w_new = self.weights + 10e-2 * d
+                self._save_new_model_weights(w_new)
+                break
             else:
                 w_new = self.weights + alpha * d
             # get new objective value and gradient
@@ -121,6 +124,9 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             r_new = -grad_new
             # Calculate Polak-Ribiére beta
             beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(tf.multiply(r, r))
+            # PRP+ with max{beta{PR}, 0}
+            logger.info(f'beta: {beta}')
+            beta = np.maximum(beta, 0)
             # Determine new search direction for next iteration step
             d_new = r_new + beta * d
             # Check for convergence
