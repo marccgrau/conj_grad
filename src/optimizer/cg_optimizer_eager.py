@@ -4,7 +4,7 @@ import numpy as np
 
 
 class NonlinearCGEager(tf.keras.optimizers.Optimizer):
-    def __init__(self, model, loss, max_iters=10, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
+    def __init__(self, model, loss, max_iters=4, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
         super().__init__(name, **kwargs)
         self.max_iters = max_iters
         self.tol = tol
@@ -22,6 +22,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         return tf.concat([tf.reshape(g, [-1]) for g in weights], axis=0)
 
     # unpack model from 1D tensor
+    # TODO: Adjust according to feedback bernhard
     def _unpack_weights(self, packed_weights):
         i = 0
         unpacked = []
@@ -70,7 +71,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         d = r
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
-            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
+            alpha = self.wolfe_line_search(maxiter=3, search_direction=d, x=x, y=y)
             # update weights along search directions
             w_new = self.weights + alpha * d
             # get new objective value and gradient
@@ -94,7 +95,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             obj_val = obj_val_new
             iters += 1
     
-    # TODO: What to get back as update in train_step() method
     # Use the var.assign() way
     def apply_gradients(self, vars, x,y):
         self.update_step(x, y)

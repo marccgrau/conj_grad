@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+#TODO: Netz verkleinern
 class BasicCNN(tf.keras.Model):
     def __init__(self, num_classes, **kwargs):
         super(BasicCNN, self).__init__(**kwargs)

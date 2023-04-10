@@ -3,9 +3,9 @@ from typing import Optional
 import joblib
 import numpy as np
 import tensorflow as tf
-from keras.utils.data_utils import get_file
+from tensorflow.keras.utils.data_utils import get_file
 
-from keras.datasets import mnist
+from tensorflow.keras.datasets import mnist
 
 from src.configs.configs import DataConfig
 
