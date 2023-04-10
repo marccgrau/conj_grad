@@ -2,6 +2,8 @@ import tensorflow as tf
 import warnings
 import numpy as np
 
+from tensorflow.keras import backend as K
+
 
 class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     def __init__(self, model, loss, max_iters=4, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
@@ -12,58 +14,89 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self.c2 = c2
         self.amax = amax
         self.model = model
-        self.weights = self._pack_weights(model.weights)
         self.loss = loss
+        # function call counters
         self.objective_tracker = 0
         self.grad_tracker = 0
+        # model specifics
+        self._weight_shapes = tf.shape_n(model.trainable_variables)
+        self._n_weights = len(self._weight_shapes)
+        self._weight_indices = []
+        self._weight_partitions = []
         
-    # pack model into 1D tensor
-    def _pack_weights(self, weights) -> tf.Tensor:
-        return tf.concat([tf.reshape(g, [-1]) for g in weights], axis=0)
-
-    # unpack model from 1D tensor
-    # TODO: Adjust according to feedback bernhard
-    def _unpack_weights(self, packed_weights):
-        i = 0
-        unpacked = []
-        for layer in self.model.layers:
-            for current in layer.weights:
-                length = tf.math.reduce_prod(current.shape)
-                unpacked.append(
-                    tf.reshape(packed_weights[i : i + length], current.shape)
+        param_count = 0
+        for i, shape in enumerate(self._weight_shapes):
+            n_params = tf.reduce_prod(shape)
+            self._weight_indices.append(
+                tf.reshape(
+                    tf.range(param_count, param_count + n_params, dtype=tf.int32), shape
                 )
-                i += length
-        return unpacked
+            )
+            self._weight_partitions.extend(
+                tf.ones(shape=(n_params,), dtype=tf.int32) * i
+            )
+            param_count += n_params
+        
+        self.weights = self._from_matrices_to_vector(model.weights)
 
+
+    
+    @tf.function
+    def _from_vector_to_matrices(self, vector):
+        return tf.dynamic_partition(
+            data=vector,
+            partitions=self._weight_partitions,
+            num_partitions=self._n_weights,
+        )
+
+    @tf.function
+    def _from_matrices_to_vector(self, matrices):
+        return tf.dynamic_stitch(indices=self._weight_indices, data=matrices)
+
+    @tf.function
+    def _update_model_parameters(self, new_params):
+        params = self._from_vector_to_matrices(new_params)
+        for i, (param, shape) in enumerate(zip(params, self._weight_shapes)):
+            param = tf.reshape(param, shape)
+            param = tf.cast(param, dtype=K.floatx())
+            self.model.trainable_variables[i].assign(param)
+
+    @tf.function
     def _objective_call(self, weights, x, y):
         # 1D Tensor to model weights and set for model
-        self.model.set_weights(self._unpack_weights(weights))
+        self._update_model_parameters(weights)
         self.objective_tracker += 1
-        return self.loss(y, self.model(x))
+        return self.loss(y, self.model(x, training=True))
     
+    @tf.function
     def _gradient_call(self, weights, x, y):
         # 1D Tensor to model weights and set for model
-        self.model.set_weights(self._unpack_weights(weights))
+        self._update_model_parameters(weights)
         with tf.GradientTape() as tape:
-            loss_value = self.loss(y, self.model(x))
+            y_pred = self.model(x, training=True)
+            loss_value = self.loss(y, y_pred)
         grads = tape.gradient(loss_value, self.model.trainable_variables)
         self.grad_tracker += 1
         self.objective_tracker += 1
-        return self._pack_weights(grads)
+        return self._from_matrices_to_vector(grads)
     
+    @tf.function
     def _obj_func_and_grad_call(self, weights, x, y):
-        self.model.set_weights(self._unpack_weights(weights))
+        self._update_model_parameters(weights)
         with tf.GradientTape() as tape:
-            loss_value = self.loss(y, self.model(x))
+            y_pred = self.model(x, training=True)
+            loss_value = self.loss(y, y_pred)
         grads = tape.gradient(loss_value, self.model.trainable_variables)
         self.grad_tracker += 1
         self.objective_tracker += 1
-        return loss_value, self._pack_weights(grads)
+        return loss_value, self._from_matrices_to_vector(grads)
     
+    @tf.function
     def _save_new_model_weights(self, weights) -> None:
         self.weights = weights
-        self.model.set_weights(self._unpack_weights(weights))
-        
+        self._update_model_parameters(weights)
+    
+    @tf.function
     def update_step(self, x, y):
         iters = 0 
         obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
@@ -73,7 +106,11 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             # Perform line search to determine alpha_star
             alpha = self.wolfe_line_search(maxiter=3, search_direction=d, x=x, y=y)
             # update weights along search directions
-            w_new = self.weights + alpha * d
+            if alpha is None:
+                warnings.warn("Line search did not converge. Stopping optimization.")
+                break
+            else:
+                w_new = self.weights + alpha * d
             # get new objective value and gradient
             obj_val_new, grad_new = self._obj_func_and_grad_call(w_new, x, y)
             # set r_{k+1}
@@ -85,7 +122,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             # Check for convergence
             if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
                 break
-            tf.print("Iteration: ", iters, "Objective Value: ", obj_val_new)
+            tf.print("\n Iteration: ", iters, "Objective Value: ", obj_val_new)
             # Store new weights and set them for the model
             self._save_new_model_weights(w_new)
             # Set new values as old values for next iteration step
@@ -95,10 +132,10 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             obj_val = obj_val_new
             iters += 1
     
-    # Use the var.assign() way
+    @tf.function
     def apply_gradients(self, vars, x,y):
         self.update_step(x, y)
-        self.model.set_weights(self._unpack_weights(self.weights))
+        self._update_model_parameters(self.weights)
         return self.model
         
     @tf.function
@@ -161,15 +198,15 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 break
             
             # First condition: phi(alpha_i) > phi(0) + c1 * alpha_i * phi'(0) or [phi(alpha_i) >= phi(alpha_{i-1}) and i > 1]
-            if phi_a1.numpy() > phi0.numpy() + self.c1 * alpha1 * derphi0.numpy() or (phi_a1.numpy() >= phi_a0.numpy() and i > 1):
+            if phi_a1 > phi0 + self.c1 * alpha1 * derphi0 or (phi_a1 >= phi_a0 and i > 1):
             #if tf.math.logical_or(tf.math.greater(phi_a1, phi0 + self.c1 * alpha1 * derphi0), tf.math.logical_and(tf.math.greater_equal(phi_a1, phi_a0), tf.math.greater(tf.Variable(i), 1))):
                 alpha_star = self._zoom(alpha0,
                                         alpha1,
-                                        phi_a0.numpy(),
-                                        phi_a1.numpy(), 
-                                        derphi_a0.numpy(),
-                                        phi0.numpy(), 
-                                        derphi0.numpy(), 
+                                        phi_a0,
+                                        phi_a1, 
+                                        derphi_a0,
+                                        phi0, 
+                                        derphi0, 
                                         search_direction,
                                         x,
                                         y,
@@ -186,15 +223,15 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 break
             
             # Third condition: phi'(alpha_i) >= 0
-            if derphi_a1.numpy() >= 0.:
+            if derphi_a1 >= 0.:
             #if (tf.math.greater_equal(derphi_a1, 0)):
                 alpha_star = self._zoom(alpha1,
                                         alpha0,
-                                        phi_a1.numpy(),
-                                        phi_a0.numpy(),
-                                        derphi_a1.numpy(),
-                                        phi0.numpy(),
-                                        derphi0.numpy(),
+                                        phi_a1,
+                                        phi_a0,
+                                        derphi_a1,
+                                        phi0,
+                                        derphi0,
                                         search_direction,
                                         x,
                                         y,
@@ -223,6 +260,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         
         return alpha_star
     
+    @tf.function
     def _zoom(self, a_lo, a_hi, phi_lo, phi_hi, derphi_lo, phi0, derphi0, search_direction, x, y):
         """
         Zoom stage of approximate line search satisfying strong Wolfe conditions.
@@ -307,6 +345,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 break
         return a_star #, val_star, valprime_star
 
+    @tf.function
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         """
         Finds the minimizer for a cubic polynomial that goes through the
@@ -335,6 +374,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             return None
         return xmin
     
+    @tf.function
     def _quadmin(self,point_1, obj_1, grad_1, point_2, obj_2):
         """
         Finds the minimizer for a quadratic polynomial that goes through
