@@ -1,8 +1,11 @@
 import tensorflow as tf
 import warnings
 import numpy as np
+import logging
 
 from tensorflow.keras import backend as K
+from src.utils.custom import as_Kfloat
+
 
 
 class NonlinearCGEager(tf.keras.optimizers.Optimizer):
@@ -107,8 +110,9 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             alpha = self.wolfe_line_search(maxiter=3, search_direction=d, x=x, y=y)
             # update weights along search directions
             if alpha is None:
-                warnings.warn("Line search did not converge. Stopping optimization.")
-                break
+                logging.warning("Line search did not converge. Stopping optimization.")
+                w_new = self.weights + 10e-3 * d
+                #break
             else:
                 w_new = self.weights + alpha * d
             # get new objective value and gradient
@@ -309,10 +313,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                     a_j = a_lo + 0.5*dalpha
 
             # Check new value of a_j
-            phi_aj = self._objective_call(self.weights + tf.math.scalar_mul(tf.cast(a_j, dtype=tf.float32),search_direction), x, y)
-            conds = phi0 + self.c1*a_j*derphi0
-            con = phi_aj > conds
-            con2 = phi_aj >= phi_lo
+            phi_aj = self._objective_call(self.weights + tf.math.scalar_mul(as_Kfloat(a_j),search_direction), x, y)
             if (phi_aj > phi0 + self.c1*a_j*derphi0) or (phi_aj >= phi_lo):
                 phi_rec = phi_hi
                 a_rec = a_hi
@@ -322,8 +323,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 derphi_aj = tf.tensordot(self._gradient_call(self.weights + a_j * search_direction, x, y), search_direction, 1)
                 if tf.math.abs(derphi_aj) <= -self.c2*derphi0:
                     a_star = a_j
-                    val_star = phi_aj
-                    valprime_star = derphi_aj
                     break
                 if derphi_aj*(a_hi - a_lo) >= 0:
                     phi_rec = phi_hi
@@ -340,8 +339,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             if (i > maxiter):
                 # Failed to find a conforming step size
                 a_star = None
-                val_star = None
-                valprime_star = None
                 break
         return a_star #, val_star, valprime_star
 

@@ -7,7 +7,9 @@ import src.data.get_data as get_data
 from src.configs import experiment_configs
 from pathlib import Path
 import datetime
+from src.utils import setup
 
+setup.set_dtype("64")
 
 
 tf.config.run_functions_eagerly(True)
