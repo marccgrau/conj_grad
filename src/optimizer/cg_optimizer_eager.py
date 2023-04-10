@@ -95,7 +95,8 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     def _save_new_model_weights(self, weights) -> None:
         self.weights = weights
         self._update_model_parameters(weights)
-        
+    
+    @tf.function
     def update_step(self, x, y):
         iters = 0 
         obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
@@ -259,6 +260,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         
         return alpha_star
     
+    @tf.function
     def _zoom(self, a_lo, a_hi, phi_lo, phi_hi, derphi_lo, phi0, derphi0, search_direction, x, y):
         """
         Zoom stage of approximate line search satisfying strong Wolfe conditions.
@@ -343,6 +345,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 break
         return a_star #, val_star, valprime_star
 
+    @tf.function
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         """
         Finds the minimizer for a cubic polynomial that goes through the
@@ -371,6 +374,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             return None
         return xmin
     
+    @tf.function
     def _quadmin(self,point_1, obj_1, grad_1, point_2, obj_2):
         """
         Finds the minimizer for a quadratic polynomial that goes through
