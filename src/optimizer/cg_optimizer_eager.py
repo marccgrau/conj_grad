@@ -161,7 +161,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 break
             
             # First condition: phi(alpha_i) > phi(0) + c1 * alpha_i * phi'(0) or [phi(alpha_i) >= phi(alpha_{i-1}) and i > 1]
-            if phi_a1.numpy() > phi0.numpy() + self.c1 * alpha1 * derphi0.numpy() or (phi_a1.numpy() >= phi_a0.numpy() and i > 1):
+            if phi_a1 > phi0.numpy() + self.c1 * alpha1 * derphi0.numpy() or (phi_a1.numpy() >= phi_a0.numpy() and i > 1):
             #if tf.math.logical_or(tf.math.greater(phi_a1, phi0 + self.c1 * alpha1 * derphi0), tf.math.logical_and(tf.math.greater_equal(phi_a1, phi_a0), tf.math.greater(tf.Variable(i), 1))):
                 alpha_star = self._zoom(alpha0,
                                         alpha1,

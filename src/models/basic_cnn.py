@@ -5,31 +5,30 @@ class BasicCNN(tf.keras.Model):
     def __init__(self, num_classes, **kwargs):
         super(BasicCNN, self).__init__(**kwargs)
         self.conv1 = tf.keras.layers.Conv2D(
-            filters=32,
+            filters=3,
             kernel_size=(3, 3),
             strides=1,
             padding="same",
         )
         #self.bn1 = tf.keras.layers.BatchNormalization()
         self.conv2 = tf.keras.layers.Conv2D(
-            filters=64,
+            filters=6,
             kernel_size=(3, 3),
             strides=1,
             padding="same",
         )
         #self.bn2 = tf.keras.layers.BatchNormalization()
         self.conv3 = tf.keras.layers.Conv2D(
-            filters=128,
+            filters=9,
             kernel_size=(3, 3),
             strides=1,
             padding="same",
         )
         #self.bn3 = tf.keras.layers.BatchNormalization()
         self.flatten = tf.keras.layers.Flatten()
-        self.fc1 = tf.keras.layers.Dense(units=256, activation="relu")
+        self.fc1 = tf.keras.layers.Dense(units=8, activation="relu")
         self.fc2 = tf.keras.layers.Dense(units=num_classes, activation="softmax")
     
-    # TODO: return metrics
     def train_step(self, data):
         # fetch data 
         x, y = data
