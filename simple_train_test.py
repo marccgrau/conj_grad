@@ -7,11 +7,13 @@ import src.data.get_data as get_data
 from src.configs import experiment_configs
 from pathlib import Path
 import datetime
+from src.utils import setup
+import logging 
 
 
 
+setup.set_dtype("64")
 tf.config.run_functions_eagerly(True)
-
 
 if tf.config.list_physical_devices('GPU'):
   print("TensorFlow **IS** using the GPU")
@@ -35,6 +37,7 @@ if test_data is not None:
     )
     test_data = test_data.cache()
     test_data = test_data.prefetch(tf.data.AUTOTUNE)
+
 
 model = basic_cnn(num_classes=10)
 model.build(input_shape=(1, 28, 28, 1))
