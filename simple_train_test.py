@@ -15,7 +15,6 @@ import logging
 setup.set_dtype("64")
 tf.config.run_functions_eagerly(True)
 
-
 if tf.config.list_physical_devices('GPU'):
   print("TensorFlow **IS** using the GPU")
 else:
