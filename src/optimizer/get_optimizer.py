@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from src.configs.configs import OptimizerConfig, ADAMConfig, RMSPROPConfig, SGDConfig, NLCGConfig, CustomConfig
 from src.utils.custom import as_Kfloat
-from src.optimizer.cg_optimizer import NLCGOptimizer
+from src.optimizer.cg_optimizer_eager import NonlinearCGEager
 from src.optimizer.custom_optimizer import CustomOptimizer
 
 def fetch_optimizer(optimizer_config: OptimizerConfig):
@@ -25,14 +25,14 @@ def fetch_optimizer(optimizer_config: OptimizerConfig):
             epsilon = as_Kfloat(optimizer_config.epsilon),
         )
     elif isinstance(optimizer_config, NLCGConfig):
-        optimizer = NLCGOptimizer(
-            alpha=as_Kfloat(0.01),
-            epsilon=as_Kfloat(1e-7)
-        )
-    elif isinstance(optimizer_config, CustomConfig):
-        optimizer = CustomOptimizer(
-            alpha=as_Kfloat(0.01),
-            epsilon=as_Kfloat(1e-7)
+        optimizer = NonlinearCGEager(
+            model=optimizer_config.model,
+            loss=optimizer_config.loss,
+            max_iters=optimizer_config.max_iters,
+            tol=optimizer_config.tol,
+            c1=optimizer_config.c1,
+            c2=optimizer_config.c2,
+            amax=optimizer_config.amax,
         )
     else:
         raise ValueError("Optimizer not defined.")

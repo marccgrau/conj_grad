@@ -11,6 +11,7 @@ from src.configs.configs import DataConfig, OptimizerConfig, TrainConfig
 import src.data.get_data as get_data
 import src.models.model_archs as model_archs
 from src.optimizer.get_optimizer import fetch_optimizer
+from src.optimizer.cg_optimizer_eager import NonlinearCGEager
 from src.models.tracking import TrainTrack, CustomTqdmCallback, compute_full_loss
 from src.configs import experiment_configs
 from src.utils import setup
@@ -52,6 +53,11 @@ def main(
     # Load chosen optimizer
     optimizer = fetch_optimizer(optimizer_config)
     
+    if isinstance(optimizer, NonlinearCGEager):
+        optimizer.model = model
+        optimizer.loss = train_config.loss_fn
+        model.compile(loss = train_config.loss_fn, optimizer = optimizer, metrics = ['accuracy'], run_eagerly=True)
+    
     # Initiate trainings tracker
     tracker = TrainTrack()
     
@@ -83,17 +89,27 @@ def main(
             tracker.epoch += 1
             
             # Iterate through batches, calc gradients, update weights
-            epoch_loss = tf.keras.metrics.Mean()
-            for idx, (x, y) in enumerate(train_data):
-                loss = _train_step(x, y)
-                epoch_loss.update_state(loss)
-                tracker.nb_function_calls += 1
-                tracker.nb_gradient_calls += 1
-                t.update_to(
-                    loss = float(epoch_loss.result()), 
-                    steps = tracker.steps, 
-                    batch = idx + 1
-                )
+            if isinstance(optimizer, NonlinearCGEager):
+                epoch_loss = tf.keras.metrics.Mean()
+                for idx, (x,y) in enumerate(train_data):
+                    tempmodel = optimizer.apply_gradients(model.trainable_variables, x, y)
+                    model.set_weights(tempmodel.get_weights())
+                    tracker.nb_function_calls = optimizer.objective_tracker
+                    tracker.nb_gradient_calls = optimizer.grad_tracker
+                    loss = epoch_loss.update_state(train_config.loss_fn(y_true = y, y_pred = model(x)))
+                    t.update_to(loss = float(epoch_loss.result()), steps = tracker.steps, batch = idx + 1)
+            else:
+                epoch_loss = tf.keras.metrics.Mean()
+                for idx, (x, y) in enumerate(train_data):
+                    loss = _train_step(x, y)
+                    epoch_loss.update_state(loss)
+                    tracker.nb_function_calls += 1
+                    tracker.nb_gradient_calls += 1
+                    t.update_to(
+                        loss = float(epoch_loss.result()), 
+                        steps = tracker.steps, 
+                        batch = idx + 1
+                    )
             
             # Compute metrics for all defined metrics
             tracker.loss = epoch_loss.result()

@@ -42,7 +42,7 @@ class TrainConfig:
         return f"TrainConfig(max_calls='{self.max_calls}', max_epochs='{self.max_epochs}', loss_fn={fn}, batch_size={self.batch_size})"
 
 
-_KERAS_OPTIMIZERS = frozenset({"RMSPROP", "SGD", "ADAM"})
+_KERAS_OPTIMIZERS = frozenset({"RMSPROP", "SGD", "ADAM", "NLCG"})
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -86,12 +86,11 @@ class ADAMConfig(KerasOptimizerConfig):
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class NLCGConfig(KerasOptimizerConfig):
-    alpha: float
-    epsilon: float
-
-@dataclasses.dataclass(slots=True, frozen=True)
-class CustomConfig(KerasOptimizerConfig):
+    model: tf.keras.Model
+    loss: tf.keras.losses.Loss
+    max_iters: int
+    tol: float
     c1: float
     c2: float
-    tol: float
-    max_iter: int
+    amax: float
+    

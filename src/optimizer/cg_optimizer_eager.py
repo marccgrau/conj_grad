@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class NonlinearCGEager(tf.keras.optimizers.Optimizer):
-    def __init__(self, model, loss, max_iters=4, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NonlinearCG', **kwargs):
+    def __init__(self, model, loss, max_iters=4, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NLCG', **kwargs):
         super().__init__(name, **kwargs)
         self.max_iters = max_iters
         self.tol = tol
