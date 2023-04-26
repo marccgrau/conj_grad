@@ -51,11 +51,9 @@ def main(
     model = model_archs.basic_cnn(data_config.num_classes)
     
     # Load chosen optimizer
-    optimizer = fetch_optimizer(optimizer_config)
+    optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
     
     if isinstance(optimizer, NonlinearCGEager):
-        optimizer.model = model
-        optimizer.loss = train_config.loss_fn
         model.compile(loss = train_config.loss_fn, optimizer = optimizer, metrics = ['accuracy'], run_eagerly=True)
     
     # Initiate trainings tracker

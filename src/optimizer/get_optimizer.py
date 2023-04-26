@@ -5,7 +5,7 @@ from src.utils.custom import as_Kfloat
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
 
 
-def fetch_optimizer(optimizer_config: OptimizerConfig):
+def fetch_optimizer(optimizer_config: OptimizerConfig, model, loss):
     if isinstance(optimizer_config, RMSPROPConfig):
         optimizer = tf.keras.optimizers.RMSprop(
             learning_rate = as_Kfloat(optimizer_config.learning_rate),
@@ -26,8 +26,8 @@ def fetch_optimizer(optimizer_config: OptimizerConfig):
         )
     elif isinstance(optimizer_config, NLCGConfig):
         optimizer = NonlinearCGEager(
-            model=optimizer_config.model,
-            loss=optimizer_config.loss,
+            model=model,
+            loss=loss,
             max_iters=optimizer_config.max_iters,
             tol=optimizer_config.tol,
             c1=optimizer_config.c1,
