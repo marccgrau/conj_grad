@@ -23,7 +23,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self.objective_tracker = 0
         self.grad_tracker = 0
         # model specifics
-        self._weight_shapes = tf.shape_n(model.trainable_variables, out_type=tf.dtypes.int64)
+        self._weight_shapes = tf.shape_n(model.trainable_variables, out_type=tf.dtypes.int32)
         self._n_weights = len(self._weight_shapes)
         self._weight_indices = []
         self._weight_partitions = []
@@ -33,11 +33,11 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             n_params = tf.reduce_prod(shape)
             self._weight_indices.append(
                 tf.reshape(
-                    tf.range(param_count, param_count + n_params, dtype=tf.int64), shape
+                    tf.range(param_count, param_count + n_params, dtype=tf.int32), shape
                 )
             )
             self._weight_partitions.extend(
-                tf.ones(shape=(n_params,), dtype=tf.int64) * i
+                tf.ones(shape=(n_params,), dtype=tf.int32) * i
             )
             param_count += n_params
         
