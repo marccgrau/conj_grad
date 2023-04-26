@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from src.configs.configs import OptimizerConfig, ADAMConfig, RMSPROPConfig, SGDConfig, NLCGConfig, CustomConfig
+from src.configs.configs import OptimizerConfig, ADAMConfig, RMSPROPConfig, SGDConfig, NLCGConfig
 from src.utils.custom import as_Kfloat
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
-from src.optimizer.custom_optimizer import CustomOptimizer
+
 
 def fetch_optimizer(optimizer_config: OptimizerConfig):
     if isinstance(optimizer_config, RMSPROPConfig):
