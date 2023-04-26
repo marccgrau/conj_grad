@@ -7,7 +7,6 @@ from src.configs.configs import (
     TaskType,
     TrainConfig,
     DataConfig,
-    CustomConfig,
 )
 from src.utils import custom
 

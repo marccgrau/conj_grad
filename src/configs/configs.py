@@ -4,7 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Callable
 import tensorflow as tf
-from pydantic import BaseModel
+
 
 class TaskType(enum.Enum):
     REGRESSION = 1
