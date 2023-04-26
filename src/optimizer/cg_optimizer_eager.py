@@ -33,11 +33,11 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             n_params = tf.reduce_prod(shape)
             self._weight_indices.append(
                 tf.reshape(
-                    tf.range(param_count, param_count + n_params, dtype=tf.int32), shape
+                    tf.range(param_count, param_count + n_params, dtype=tf.int64), shape
                 )
             )
             self._weight_partitions.extend(
-                tf.ones(shape=(n_params,), dtype=tf.int32) * i
+                tf.ones(shape=(n_params,), dtype=tf.int64) * i
             )
             param_count += n_params
         
@@ -366,7 +366,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             d1[0, 1] = -db ** 2
             d1[1, 0] = -dc ** 3
             d1[1, 1] = db ** 3
-            [A, B] = np.dot(d1, np.asarray([fb - fa - C * db, fc - fa - C * dc], dtype='float32').flatten())
+            [A, B] = np.dot(d1, np.asarray([fb - fa - C * db, fc - fa - C * dc], dtype='float64').flatten())
             A /= denom
             B /= denom
             radical = B * B - 3 * A * C
