@@ -23,7 +23,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self.objective_tracker = 0
         self.grad_tracker = 0
         # model specifics
-        self._weight_shapes = tf.shape_n(model.trainable_variables)
+        self._weight_shapes = tf.shape_n(model.trainable_variables, out_type=tf.dtypes.int64)
         self._n_weights = len(self._weight_shapes)
         self._weight_indices = []
         self._weight_partitions = []
