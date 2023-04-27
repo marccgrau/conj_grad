@@ -3,6 +3,7 @@ import tensorflow as tf
 from src.configs.configs import OptimizerConfig, ADAMConfig, RMSPROPConfig, SGDConfig, NLCGConfig
 from src.utils.custom import as_Kfloat
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
+from src.utils import setup
 
 
 def fetch_optimizer(optimizer_config: OptimizerConfig, model, loss):
@@ -29,10 +30,10 @@ def fetch_optimizer(optimizer_config: OptimizerConfig, model, loss):
             model=model,
             loss=loss,
             max_iters=optimizer_config.max_iters,
-            tol=optimizer_config.tol,
-            c1=optimizer_config.c1,
-            c2=optimizer_config.c2,
-            amax=optimizer_config.amax,
+            tol=as_Kfloat(optimizer_config.tol),
+            c1=as_Kfloat(optimizer_config.c1),
+            c2=as_Kfloat(optimizer_config.c2),
+            amax=as_Kfloat(optimizer_config.amax),
         )
     else:
         raise ValueError("Optimizer not defined.")

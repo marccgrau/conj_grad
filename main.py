@@ -49,9 +49,11 @@ def main(
         
     # Load model architecture
     model = model_archs.basic_cnn(data_config.num_classes)
-    
+    model.build(input_shape=(1, 28, 28, 1))
+    model.summary()
     # Load chosen optimizer
-    optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
+    #optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
+    optimizer = NonlinearCGEager(model, train_config.loss_fn)
     
     if isinstance(optimizer, NonlinearCGEager):
         model.compile(loss = train_config.loss_fn, optimizer = optimizer, metrics = ['accuracy'], run_eagerly=True)
