@@ -6,12 +6,35 @@ import tensorflow as tf
 from tensorflow.keras.utils import get_file
 
 from tensorflow.keras.datasets import mnist
+import tensorflow_datasets as tfds
 
 from src.configs.configs import DataConfig
 
 keras = tf.keras
 K = keras.backend
 
+_IMAGE_SIZE = (224, 224)
+
+def _load_imagenet(*args, **kwargs): 
+    train_ds, test_ds = tfds.load(
+        "imagenet2012", 
+        split=["train", "validation"], 
+        shuffle_files=True, 
+        ) 
+    # Imagenet dataset has arbitrary sizes, we need to resize all of them. 
+    resizer = tf.keras.layers.Resizing(*_IMAGE_SIZE) 
+    
+    def resize(img, label): 
+        return resizer(img), label 
+    
+    def prepare(split): 
+        split = split.map( lambda item: (item["image"], item["label"]), num_parallel_calls=tf.data.AUTOTUNE, ) 
+        split = split.map(resize, num_parallel_calls=tf.data.AUTOTUNE) 
+        return split 
+    
+    train_ds = prepare(train_ds) 
+    test_ds = prepare(test_ds) 
+    return train_ds, test_ds
 
 def _load_mnist(data_config: DataConfig):
     """
@@ -47,6 +70,9 @@ def fetch_data(
 
     if "MNIST" in data_config.name:
         x_train, y_train, x_test, y_test = _load_mnist(data_config)
+    elif "IMAGENET" in data_config.name:
+        ds_train, ds_test = _load_imagenet()
+        return ds_train, ds_test
     else:
         # TODO: add other datasets
         pass
