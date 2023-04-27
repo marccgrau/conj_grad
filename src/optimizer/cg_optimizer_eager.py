@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class NonlinearCGEager(tf.keras.optimizers.Optimizer):
-    def __init__(self, model, loss, max_iters=4, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NLCG', **kwargs):
+    def __init__(self, model, loss, max_iters=10, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0, name='NLCG', **kwargs):
         super().__init__(name, **kwargs)
         self.max_iters = max_iters
         self.tol = tol
@@ -108,7 +108,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         d = r
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
-            alpha = self.wolfe_line_search(maxiter=3, search_direction=d, x=x, y=y)
+            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
             logger.info(f'alpha after line search: {alpha}')
             # update weights along search directions
             if alpha is None:

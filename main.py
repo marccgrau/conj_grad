@@ -5,7 +5,7 @@ from pathlib import Path
 import pprint
 import os
 import dataclasses
-from dotenv import find_dotenv, load_dotenv
+#from dotenv import find_dotenv, load_dotenv
 
 from src.configs.configs import DataConfig, OptimizerConfig, TrainConfig
 import src.data.get_data as get_data
@@ -18,7 +18,7 @@ from src.utils import setup
 
 
 pp = pprint.PrettyPrinter(underscore_numbers=True).pprint
-load_dotenv(find_dotenv())
+#load_dotenv(find_dotenv())
 
 def main(
     data_config: DataConfig,
@@ -27,6 +27,7 @@ def main(
 ):
     # set seet for replication
     tf.random.set_seed(train_config.seed)
+    tf.config.run_functions_eagerly(True)
     
     # Fetch all data, load to cache
     train_data, test_data = get_data.fetch_data(data_config)
@@ -52,10 +53,10 @@ def main(
     model.build(input_shape=(1, 28, 28, 1))
     model.summary()
     # Load chosen optimizer
-    #optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
-    optimizer = NonlinearCGEager(model, train_config.loss_fn)
+    optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
     
     if isinstance(optimizer, NonlinearCGEager):
+        #optimizer = NonlinearCGEager(model, train_config.loss_fn)
         model.compile(loss = train_config.loss_fn, optimizer = optimizer, metrics = ['accuracy'], run_eagerly=True)
     
     # Initiate trainings tracker

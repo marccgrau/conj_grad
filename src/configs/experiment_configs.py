@@ -20,7 +20,7 @@ optimizers: dict[str, OptimizerConfig] = {
         ADAMConfig(
             name="ADAM", learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-7
         ),
-        NLCGConfig(name="NLCG", model=None, loss=None, max_iters=5, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0),
+        NLCGConfig(name="NLCG", model=None, loss=None, max_iters=40, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0),
     ]
 }
 
@@ -43,8 +43,8 @@ train: dict[TaskType, TrainConfig] = {
     ),
     TaskType.MULTICLASS_CLASSIFICATION: TrainConfig(
         seed=42,
-        max_calls=2400,
-        max_epochs=5,
+        max_calls=3600,
+        max_epochs=20,
         loss_fn=custom.crossentropy,
         batch_size=None,
         metrics=[custom.accuracy],
