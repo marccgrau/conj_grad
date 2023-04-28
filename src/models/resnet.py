@@ -6,7 +6,7 @@ class ResNetTypeI(tf.keras.Model):
     def __init__(self, layer_params, num_classes):
         super(ResNetTypeI, self).__init__()
 
-        self.conv1 = tf.keras.layers.Conv2D(filters=1,
+        self.conv1 = tf.keras.layers.Conv2D(filters=4,
                                             kernel_size=(7, 7),
                                             strides=2,
                                             padding="same")
@@ -15,15 +15,15 @@ class ResNetTypeI(tf.keras.Model):
                                                strides=2,
                                                padding="same")
 
-        self.layer1 = make_basic_block_layer(num_filters=2,
+        self.layer1 = make_basic_block_layer(num_filters=4,
                                              blocks=layer_params[0])
-        self.layer2 = make_basic_block_layer(num_filters=4,
+        self.layer2 = make_basic_block_layer(num_filters=8,
                                              blocks=layer_params[1],
                                              stride=2)
-        self.layer3 = make_basic_block_layer(num_filters=8,
+        self.layer3 = make_basic_block_layer(num_filters=16,
                                              blocks=layer_params[2],
                                              stride=2)
-        self.layer4 = make_basic_block_layer(num_filters=16,
+        self.layer4 = make_basic_block_layer(num_filters=32,
                                              blocks=layer_params[3],
                                              stride=2)
 
