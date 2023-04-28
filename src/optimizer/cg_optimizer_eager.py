@@ -47,6 +47,17 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     
     @tf.function
     def _from_vector_to_matrices(self, vector):
+        """
+        Turn 1D weight representation into model representation
+        Parameters
+        ----------
+        vector: tf.Tensor
+            1D representation of weights
+        Returns
+        -------
+        dynamic_partition: tf.Tensor
+            Weights in model representation
+        """
         return tf.dynamic_partition(
             data=vector,
             partitions=self._weight_partitions,
@@ -55,10 +66,31 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
 
     @tf.function
     def _from_matrices_to_vector(self, matrices):
+        """
+        Turn weights in model representation to 1D representation
+        Parameters
+        ----------
+        matrices: tf.Tensor
+            Weights in model representation
+        Returns
+        -------
+        vector: tf.Tensor
+            1D representation of weights
+        """
         return tf.dynamic_stitch(indices=self._weight_indices, data=matrices)
 
     @tf.function
     def _update_model_parameters(self, new_params):
+        """
+        Assign new set of weights to model
+        Parameters
+        ----------
+        new_params: tf.Tensor
+            New model weights
+        Returns
+        -------
+        
+        """
         params = self._from_vector_to_matrices(new_params)
         for i, (param, shape) in enumerate(zip(params, self._weight_shapes)):
             param = tf.reshape(param, shape)
@@ -67,14 +99,40 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
 
     @tf.function
     def _objective_call(self, weights, x, y):
-        # 1D Tensor to model weights and set for model
+        """
+        Calculate value of objective function given a certain set of model weights
+        Add +1 to tracker of objective function calls
+        Parameters
+        ----------
+        weights: tf.Tensor
+            Set of possible model weights
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+        loss: tf.Tensor
+        """
         self._update_model_parameters(weights)
         self.objective_tracker += 1
         return self.loss(y, self.model(x, training=True))
     
     @tf.function
     def _gradient_call(self, weights, x, y):
-        # 1D Tensor to model weights and set for model
+        """
+        Calculate value of objective function given a certain set of model weights
+        Calculate gradient for the given set of model weights
+        Update both objective function and gradient call trackers
+        Return only gradient
+        Parameters
+        ----------
+        weights: tf.Tensor
+            Set of possible model weights
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+        grads: tf.Tensor in 1D representation
+        """
         self._update_model_parameters(weights)
         with tf.GradientTape() as tape:
             y_pred = self.model(x, training=True)
@@ -86,6 +144,22 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     
     @tf.function
     def _obj_func_and_grad_call(self, weights, x, y):
+        """
+        Calculate value of objective function given a certain set of model weights
+        Calculate gradient for the given set of model weights
+        Update both objective function and gradient call trackers
+        Returns both loss and gradient
+        Parameters
+        ----------
+        weights: tf.Tensor
+            Set of possible model weights
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+        loss: tf.Tensor
+        grads: tf.Tensor in 1D representation
+        """
         self._update_model_parameters(weights)
         with tf.GradientTape() as tape:
             y_pred = self.model(x, training=True)
@@ -97,11 +171,40 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     
     @tf.function
     def _save_new_model_weights(self, weights) -> None:
+        """
+        Calculate value of objective function given a certain set of model weights
+        Calculate gradient for the given set of model weights
+        Update both objective function and gradient call trackers
+        Returns both loss and gradient
+        Parameters
+        ----------
+        weights: tf.Tensor
+            Set of possible model weights
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+        loss: tf.Tensor
+        grads: tf.Tensor in 1D representation
+        """
         self.weights = weights
         self._update_model_parameters(weights)
     
     @tf.function
     def update_step(self, x, y):
+        """
+        Initialise conjugate gradient method by setting initial search direction
+        Nonlinear conjugate gradient optimization procedure with line search satisfying Wolfe conditions
+        Beta of Polak-Ribière with max(beta, 0) to satisfy convergence conditions
+        
+        Parameters
+        ----------
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+
+        """
         iters = 0 
         obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
         r = -grad
@@ -144,6 +247,19 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     
     @tf.function
     def apply_gradients(self, vars, x,y):
+        """
+        Do exactly one update step, which could include multiple iterations
+        Necessary to define for training procedure
+        Parameters
+        ----------
+        vars: trainable variables of model
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+        model: tf.keras.Model
+        Updated model with new weights after iterations
+        """
         self.update_step(x, y)
         self._update_model_parameters(self.weights)
         return self.model
@@ -155,15 +271,15 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         alpha > 0 is assumed to be a descent direction. #NOTE: Not always the case for Polak-Ribiere
         Parameters
         ----------
-        c1: float, optional
+        c1: float
             Parameter for Armijo condition rule.
-        c2: float, optional
+        c2: float
             Parameter for curvature condition rule.
-        amax: float, optional
+        amax: float
             Maximum step size.
-        maxiter: int, optional
+        maxiter: int
             Maximum number of iterations.
-        search_direction: tf.Tensor, optional
+        search_direction: tf.Tensor
             Search direction for line search determined by previous iteration step.
         Returns
         -------
@@ -346,7 +462,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 # Failed to find a conforming step size
                 a_star = None
                 break
-        return a_star #, val_star, valprime_star
+        return a_star 
 
     @tf.function
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
@@ -366,6 +482,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             d1[0, 1] = -db ** 2
             d1[1, 0] = -dc ** 3
             d1[1, 1] = db ** 3
+            # TODO: Hardcoded dtype
             [A, B] = np.dot(d1, np.asarray([fb - fa - C * db, fc - fa - C * dc], dtype='float64').flatten())
             A /= denom
             B /= denom
