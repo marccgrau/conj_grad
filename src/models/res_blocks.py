@@ -9,14 +9,14 @@ class BasicBlock(tf.keras.layers.Layer):
             strides=stride,
             padding="same",
         )
-        self.bn1 = tf.keras.layers.BatchNormalization()
+        #self.bn1 = tf.keras.layers.BatchNormalization()
         self.conv2 = tf.keras.layers.Conv2D(
             filters=num_filters,
             kernel_size=(3, 3),
             strides=1,
             padding="same",
         )
-        self.bn2 = tf.keras.layers.BatchNormalization()
+        #self.bn2 = tf.keras.layers.BatchNormalization()
         if stride != 1:
             self.downsample = tf.keras.Sequential()
             self.downsample.add(
@@ -33,10 +33,10 @@ class BasicBlock(tf.keras.layers.Layer):
         residual = self.downsample(inputs)
         
         x = self.conv1(inputs)
-        x = self.bn1(x, training=training)
+        #x = self.bn1(x, training=training)
         x = tf.nn.relu(x)
         x = self.conv2(x)
-        x = self.bn2(x, training=training)
+        #x = self.bn2(x, training=training)
         
         output = tf.nn.relu(tf.keras.layers.add([residual, x]))
         
