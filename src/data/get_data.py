@@ -48,7 +48,7 @@ def _load_imagenet(data_config: DataConfig):
 def _load_cifar10(data_config: DataConfig): 
     train_ds, test_ds = tfds.load(
         "cifar10", 
-        split=["train", "validation"], 
+        split=["train", "test"], 
         shuffle_files=True, 
         as_supervised=True,
         ) 
@@ -66,7 +66,7 @@ def _load_cifar10(data_config: DataConfig):
         return image, label
     
     def prepare(split): 
-        split = split.map( lambda item: (item["image"], item["label"]), num_parallel_calls=tf.data.AUTOTUNE, ) 
+        #split = split.map( lambda item: (item["image"], item["label"]), num_parallel_calls=tf.data.AUTOTUNE, ) 
         split = split.map(resize, num_parallel_calls=tf.data.AUTOTUNE) 
         split = split.map(one_hot, num_parallel_calls=tf.data.AUTOTUNE) 
         return split 
@@ -78,7 +78,7 @@ def _load_cifar10(data_config: DataConfig):
 def _load_cifar100(data_config: DataConfig): 
     train_ds, test_ds = tfds.load(
         "cifar100", 
-        split=["train", "validation"], 
+        split=["train", "test"], 
         shuffle_files=True, 
         as_supervised=True,
         ) 
@@ -96,7 +96,7 @@ def _load_cifar100(data_config: DataConfig):
         return image, label
     
     def prepare(split): 
-        split = split.map( lambda item: (item["image"], item["label"]), num_parallel_calls=tf.data.AUTOTUNE, ) 
+        #split = split.map( lambda item: (item["image"], item["label"]), num_parallel_calls=tf.data.AUTOTUNE, ) 
         split = split.map(resize, num_parallel_calls=tf.data.AUTOTUNE) 
         split = split.map(one_hot, num_parallel_calls=tf.data.AUTOTUNE) 
         return split 
@@ -142,11 +142,11 @@ def fetch_data(
     elif "IMAGENET" in data_config.name:
         ds_train, ds_test = _load_imagenet(data_config)
         return ds_train, ds_test
-    elif "CIFAR10" in data_config.name:
-        ds_train, ds_test = _load_cifar10(data_config)
-        return ds_train, ds_test
     elif "CIFAR100" in data_config.name:
         ds_train, ds_test = _load_cifar100(data_config)
+        return ds_train, ds_test
+    elif "CIFAR10" in data_config.name:
+        ds_train, ds_test = _load_cifar10(data_config)
         return ds_train, ds_test
     else:
         # TODO: add other datasets

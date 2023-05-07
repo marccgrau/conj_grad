@@ -64,24 +64,28 @@ data: dict[str, DataConfig] = {
         name="MNIST",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=10,
+        input_shape=(1, 28, 28, 1),
     ),
     "IMAGENET": DataConfig(
         path=None,  # set in CLI
         name="IMAGENET",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=1000,
+        input_shape=(1, 224, 224, 3),
     ),
     "CIFAR10": DataConfig(
         path=None,
         name="CIFAR10",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=10,
+        input_shape=(1, 32, 32, 3),
     ),
     "CIFAR100": DataConfig(
         path=None,
         name="CIFAR100",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=100,
+        input_shape=(1, 32, 32, 3),
     ),
 }
 

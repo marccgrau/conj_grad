@@ -18,6 +18,7 @@ class DataConfig:
     task: TaskType
     path: Optional[Path] = dataclasses.field(default=None)
     num_classes: Optional[int] = dataclasses.field(default=None)
+    input_shape: tuple[int, int, int, int] = dataclasses.field(default=None)
 
     @property
     def full_name(self):
