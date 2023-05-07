@@ -1,7 +1,7 @@
 from src.configs.configs import (
-    OptimizerConfig, 
-    RMSPROPConfig, 
-    SGDConfig, 
+    OptimizerConfig,
+    RMSPROPConfig,
+    SGDConfig,
     ADAMConfig,
     NLCGConfig,
     TaskType,
@@ -13,14 +13,21 @@ from src.utils import custom
 optimizers: dict[str, OptimizerConfig] = {
     oc.name: oc
     for oc in [
-        RMSPROPConfig(
-            name="RMSPROP", learning_rate=1e-3, rho=0.9, epsilon=1e-7
-        ),
+        RMSPROPConfig(name="RMSPROP", learning_rate=1e-3, rho=0.9, epsilon=1e-7),
         SGDConfig(name="SGD", learning_rate=0.01, momentum=0.0),
         ADAMConfig(
             name="ADAM", learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-7
         ),
-        NLCGConfig(name="NLCG", model=None, loss=None, max_iters=40, tol=1e-7, c1=1e-4, c2=0.1, amax=1.0),
+        NLCGConfig(
+            name="NLCG",
+            model=None,
+            loss=None,
+            max_iters=20,
+            tol=1e-7,
+            c1=1e-4,
+            c2=0.1,
+            amax=1.0,
+        ),
     ]
 }
 
@@ -53,18 +60,17 @@ train: dict[TaskType, TrainConfig] = {
 
 data: dict[str, DataConfig] = {
     "MNIST": DataConfig(
-        path = None, # set in CLI
-        name = "MNIST",
-        task = TaskType.MULTICLASS_CLASSIFICATION,
+        path=None,  # set in CLI
+        name="MNIST",
+        task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=10,
     ),
     "IMAGENET": DataConfig(
-        path = None, # set in CLI
-        name = "IMAGENET",
-        task = TaskType.MULTICLASS_CLASSIFICATION,
+        path=None,  # set in CLI
+        name="IMAGENET",
+        task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=1000,
-    ) 
+    ),
 }
 
 dtypes: frozenset = frozenset(("float32", "float64"))
-

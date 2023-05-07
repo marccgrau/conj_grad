@@ -211,11 +211,11 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         d = r
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
-            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
+            alpha = self.wolfe_line_search(maxiter=20, search_direction=d, x=x, y=y)
             logger.info(f'alpha after line search: {alpha}')
             # update weights along search directions
             if alpha is None:
-                logger.warning("Line search did not converge. Stopping optimization.")
+                logger.warning("Alpha is None. Making steepest descent step.")
                 w_new = self.weights + 10e-2 * d
                 self._save_new_model_weights(w_new)
                 break
@@ -235,9 +235,9 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             # Check for convergence
             if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
                 break
-            tf.print("\n Iteration: ", iters, "Objective Value: ", obj_val_new)
-            # Store new weights and set them for the model
-            self._save_new_model_weights(w_new)
+            # check if vector norm is smaller than the tolerance
+            if tf.norm(r_new) <= self.tol:
+                break
             # Set new values as old values for next iteration step
             grad = grad_new
             r = r_new
@@ -366,7 +366,8 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             
             # extrapolation step of alpha_i as no conditions are met
             # simple procedure to mulitply alpha by 2
-            alpha2 = 2*alpha1
+            # NOTE: check with smaller mulitplier than 2
+            alpha2 = 1.2*alpha1
             # check if we don't overshoot amax
             if self.amax is not None:
                 alpha2 = np.minimum(alpha2, self.amax)
