@@ -51,8 +51,8 @@ def main(
     # Load model architecture
     #model = model_archs.basic_cnn(data_config.num_classes)
     model = model_archs.resnet_18(data_config.num_classes)
-    model.build(input_shape=(1, 28, 28, 1))
-    #model.build(input_shape=(1, 224, 224, 3))
+    #model.build(input_shape=(1, 28, 28, 1))
+    model.build(input_shape=(1, 224, 224, 3))
     model.summary()
     # Load chosen optimizer
     optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)

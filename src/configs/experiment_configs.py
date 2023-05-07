@@ -71,6 +71,18 @@ data: dict[str, DataConfig] = {
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=1000,
     ),
+    "CIFAR10": DataConfig(
+        path=None,
+        name="CIFAR10",
+        task=TaskType.MULTICLASS_CLASSIFICATION,
+        num_classes=10,
+    ),
+    "CIFAR100": DataConfig(
+        path=None,
+        name="CIFAR100",
+        task=TaskType.MULTICLASS_CLASSIFICATION,
+        num_classes=100,
+    ),
 }
 
 dtypes: frozenset = frozenset(("float32", "float64"))
