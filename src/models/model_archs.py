@@ -1,5 +1,6 @@
 from src.models.basic_cnn import BasicCNN
-from src.models.resnet import ResNetTypeI, ResNetTypeII
+from src.models.resnet import ResNetTypeI, ResNetTypeII, ResNetCIFAR
+
 
 def basic_cnn(num_classes):
     return BasicCNN(num_classes=num_classes)
@@ -23,3 +24,7 @@ def resnet_101(num_classes):
 
 def resnet_152(num_classes):
     return ResNetTypeII(layer_params=[3, 8, 36, 3], num_classes=num_classes)
+
+
+def resnet_cifar(num_classes):
+    return ResNetCIFAR(layer_params=[1, 1, 1], num_classes=num_classes)
