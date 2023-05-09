@@ -59,8 +59,8 @@ def main(
     elif "IMAGENET" in data_config.name:
         model = model_archs.resnet_18(data_config.num_classes)
     else:
-        pp(f'no specific model defined for the given dataset')
-    
+        pp(f"no specific model defined for the given dataset")
+
     model.build(input_shape=data_config.input_shape)
     model.summary()
     # Load chosen optimizer
@@ -109,11 +109,7 @@ def main(
             if isinstance(optimizer, NonlinearCGEager):
                 epoch_loss = tf.keras.metrics.Mean()
                 for idx, (x, y) in enumerate(train_data):
-                    pdb.set_trace()
-                    new_weights = optimizer.apply_gradients(
-                        model.trainable_variables, x, y
-                    )
-                    model.set_weights(new_weights)
+                    optimizer.apply_gradients(model.trainable_variables, x, y)
                     tracker.nb_function_calls = optimizer.objective_tracker
                     tracker.nb_gradient_calls = optimizer.grad_tracker
                     loss = epoch_loss.update_state(
