@@ -5,6 +5,7 @@ from pathlib import Path
 import pprint
 import os
 import dataclasses
+import pdb
 
 # from dotenv import find_dotenv, load_dotenv
 
@@ -51,9 +52,15 @@ def main(
         test_data = test_data.prefetch(tf.data.AUTOTUNE)
 
     # Load model architecture
-    # model = model_archs.basic_cnn(data_config.num_classes)
-    # model = model_archs.resnet_18(data_config.num_classes)
-    model = model_archs.resnet_cifar(data_config.num_classes)
+    if "MNIST" in data_config.name:
+        model = model_archs.basic_cnn(data_config.num_classes)
+    elif "CIFAR" in data_config.name:
+        model = model_archs.resnet_cifar(data_config.num_classes)
+    elif "IMAGENET" in data_config.name:
+        model = model_archs.resnet_18(data_config.num_classes)
+    else:
+        pp(f'no specific model defined for the given dataset')
+    
     model.build(input_shape=data_config.input_shape)
     model.summary()
     # Load chosen optimizer
@@ -102,10 +109,10 @@ def main(
             if isinstance(optimizer, NonlinearCGEager):
                 epoch_loss = tf.keras.metrics.Mean()
                 for idx, (x, y) in enumerate(train_data):
-                    tempmodel = optimizer.apply_gradients(
+                    new_weights = optimizer.apply_gradients(
                         model.trainable_variables, x, y
                     )
-                    model.set_weights(tempmodel.get_weights())
+                    model.set_weights(new_weights)
                     tracker.nb_function_calls = optimizer.objective_tracker
                     tracker.nb_gradient_calls = optimizer.grad_tracker
                     loss = epoch_loss.update_state(

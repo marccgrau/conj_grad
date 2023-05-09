@@ -172,20 +172,14 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
     @tf.function
     def _save_new_model_weights(self, weights) -> None:
         """
-        Calculate value of objective function given a certain set of model weights
-        Calculate gradient for the given set of model weights
-        Update both objective function and gradient call trackers
-        Returns both loss and gradient
+        Get new set of weights and assign it to the model
         Parameters
         ----------
         weights: tf.Tensor
             Set of possible model weights
-        x: tf.Tensor
-        y: tf.Tensor
         Returns
         -------
-        loss: tf.Tensor
-        grads: tf.Tensor in 1D representation
+
         """
         self.weights = weights
         self._update_model_parameters(weights)
@@ -216,27 +210,30 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             # update weights along search directions
             if alpha is None:
                 logger.warning("Alpha is None. Making steepest descent step.")
-                w_new = self.weights + 10e-2 * d
+                w_new = self.weights + 10e-4 * r
                 self._save_new_model_weights(w_new)
                 break
             else:
                 w_new = self.weights + alpha * d
             # get new objective value and gradient
             obj_val_new, grad_new = self._obj_func_and_grad_call(w_new, x, y)
+            self.weights = w_new
             # set r_{k+1}
             r_new = -grad_new
             # Calculate Polak-Ribiére beta
             beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(tf.multiply(r, r))
             # PRP+ with max{beta{PR}, 0}
-            logger.info(f'beta: {beta}')
             beta = np.maximum(beta, 0)
+            logger.info(f'beta: {beta}')
             # Determine new search direction for next iteration step
             d_new = r_new + beta * d
             # Check for convergence
             if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
+                logger.info(f'Stop NLCG, no sufficient decrease in value function')
                 break
             # check if vector norm is smaller than the tolerance
             if tf.norm(r_new) <= self.tol:
+                logger.info(f'Stop NLCG, gradient norm smaller than tolerance')
                 break
             # Set new values as old values for next iteration step
             grad = grad_new
@@ -262,7 +259,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         """
         self.update_step(x, y)
         self._update_model_parameters(self.weights)
-        return self.model
+        return self.model.get_weights()
         
     @tf.function
     def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
