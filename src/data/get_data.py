@@ -59,6 +59,7 @@ def _load_cifar10(data_config: DataConfig):
         return resizer(img), label 
     
     def one_hot(image, label):
+        image /= 255
         # Casts to an Int and performs one-hot ops
         label = tf.one_hot(tf.cast(label, tf.int32), data_config.num_classes)
         # Recasts it to Float32
@@ -89,6 +90,7 @@ def _load_cifar100(data_config: DataConfig):
         return resizer(img), label 
     
     def one_hot(image, label):
+        image /= 255
         # Casts to an Int and performs one-hot ops
         label = tf.one_hot(tf.cast(label, tf.int32), data_config.num_classes)
         # Recasts it to Float32

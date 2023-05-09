@@ -41,7 +41,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             )
             param_count += n_params
         
-        self.weights = self._from_matrices_to_vector(model.weights)
+        self.weights = self._from_matrices_to_vector(model.trainable_variables)
 
 
     

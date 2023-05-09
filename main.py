@@ -109,6 +109,7 @@ def main(
             if isinstance(optimizer, NonlinearCGEager):
                 epoch_loss = tf.keras.metrics.Mean()
                 for idx, (x, y) in enumerate(train_data):
+                    pdb.set_trace()
                     new_weights = optimizer.apply_gradients(
                         model.trainable_variables, x, y
                     )
