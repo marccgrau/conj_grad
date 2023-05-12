@@ -17,6 +17,7 @@ from src.optimizer.cg_optimizer_eager import NonlinearCGEager
 from src.models.tracking import TrainTrack, CustomTqdmCallback, compute_full_loss
 from src.configs import experiment_configs
 from src.utils import setup
+from src.models.new_resnet import resnet50
 
 
 pp = pprint.PrettyPrinter(underscore_numbers=True).pprint
@@ -34,7 +35,7 @@ def main(
 
     # Fetch all data, load to cache
     train_data, test_data = get_data.fetch_data(data_config)
-    #train_data = train_data.cache()
+    # train_data = train_data.cache()
     train_data = train_data.batch(
         batch_size=train_config.batch_size
         if train_config.batch_size
@@ -55,7 +56,7 @@ def main(
     if "MNIST" in data_config.name:
         model = model_archs.basic_cnn(data_config.num_classes)
     elif "CIFAR" in data_config.name:
-        model = model_archs.resnet_cifar(data_config.num_classes)
+        model = resnet50()
     elif "IMAGENET" in data_config.name:
         model = model_archs.resnet_18(data_config.num_classes)
     else:
