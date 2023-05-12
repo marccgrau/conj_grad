@@ -34,7 +34,7 @@ def main(
 
     # Fetch all data, load to cache
     train_data, test_data = get_data.fetch_data(data_config)
-    train_data = train_data.cache()
+    #train_data = train_data.cache()
     train_data = train_data.batch(
         batch_size=train_config.batch_size
         if train_config.batch_size

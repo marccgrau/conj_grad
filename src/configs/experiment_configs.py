@@ -22,10 +22,10 @@ optimizers: dict[str, OptimizerConfig] = {
             name="NLCG",
             model=None,
             loss=None,
-            max_iters=3,
+            max_iters=30,
             tol=1e-7,
             c1=1e-4,
-            c2=0.1,
+            c2=0.9,
             amax=1.0,
         ),
     ]
