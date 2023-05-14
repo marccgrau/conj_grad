@@ -15,7 +15,7 @@ class ResNetTypeI(tf.keras.Model):
             pool_size=(3, 3), strides=2, padding="same"
         )
 
-        self.layer1 = make_basic_block_layer(num_filters=8, blocks=layer_params[0])
+        self.layer1 = make_basic_block_layer(num_filters=2, blocks=layer_params[0])
         self.layer2 = make_basic_block_layer(
             num_filters=4, blocks=layer_params[1], stride=2
         )
