@@ -5,7 +5,6 @@ from pathlib import Path
 import pprint
 import os
 import dataclasses
-import pdb
 
 # from dotenv import find_dotenv, load_dotenv
 
@@ -56,7 +55,8 @@ def main(
     if "MNIST" in data_config.name:
         model = model_archs.basic_cnn(data_config.num_classes)
     elif "CIFAR" in data_config.name:
-        model = resnet50()
+        # model = resnet50()
+        model = model_archs.cifar_cnn(data_config.num_classes)
     elif "IMAGENET" in data_config.name:
         model = model_archs.resnet_18(data_config.num_classes)
     else:
