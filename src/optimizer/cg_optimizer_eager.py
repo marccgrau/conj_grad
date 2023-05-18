@@ -215,14 +215,14 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         d = r
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
-            alpha = self.wolfe_line_search(maxiter=20, search_direction=d, x=x, y=y)
+            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
             logger.info(f"alpha after line search: {alpha}")
             # update weights along search directions
             if alpha is None:
-                logger.warning("Alpha is None. Making no step.")
+                logger.info("Alpha is None. Making no step.")
                 # w_new = self.weights + 10e-1 * r
                 # self._save_new_model_weights(w_new)
-                # break
+                break
             else:
                 w_new = self.weights + alpha * d
                 self._save_new_model_weights(w_new)
