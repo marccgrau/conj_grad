@@ -5,6 +5,7 @@ from pathlib import Path
 import pprint
 import os
 import dataclasses
+import datetime
 
 # from dotenv import find_dotenv, load_dotenv
 
@@ -69,14 +70,18 @@ def main(
     
     if isinstance(optimizer, NonlinearCGEager):
         tf.config.run_functions_eagerly(True)
-
-    if isinstance(optimizer, NonlinearCGEager) or isinstance(optimizer, NonlinearCG):
-        # optimizer = NonlinearCGEager(model, train_config.loss_fn)
         model.compile(
             loss=train_config.loss_fn,
             optimizer=optimizer,
             metrics=["accuracy"],
             run_eagerly=True,
+        )    
+    
+    if isinstance(optimizer, NonlinearCG):
+        model.compile(
+            loss=train_config.loss_fn,
+            optimizer=optimizer,
+            metrics=["accuracy"],
         )
 
     # Initiate trainings tracker

@@ -25,15 +25,15 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
     ):
         super().__init__(name, **kwargs)
         self.max_iters = max_iters
-        self.tol = tol
-        self.c1 = c1
-        self.c2 = c2
-        self.amax = amax
+        self.tol = tf.Variable(tol, name='tolerance')
+        self.c1 = tf.Variable(c1, name='c1')
+        self.c2 = tf.Variable(c2, name='c2')
+        self.amax = tf.Variable(amax, name='amax')
         self.model = model
         self.loss = loss
         # function call counters
-        self.objective_tracker = 0
-        self.grad_tracker = 0
+        self.objective_tracker = tf.Variable(0, name='objective_tracker')
+        self.grad_tracker = tf.Variable(0, name='gradient_tracker')
         # model specifics
         self._weight_shapes = tf.shape_n(self.model.trainable_variables)
         self._n_weights = len(self._weight_shapes)
@@ -53,7 +53,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             )
             param_count += n_params
 
-        self.weights = self._from_matrices_to_vector(model.trainable_variables)
+        self.weights = tf.Variable(self._from_matrices_to_vector(model.trainable_variables), name='weights')
 
     @tf.function
     def _from_vector_to_matrices(self, vector):
@@ -123,7 +123,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         loss: tf.Tensor
         """
         self._update_model_parameters(weights)
-        self.objective_tracker += 1
+        self.objective_tracker.assign_add(1)
         return self.loss(y, self.model(x, training=True))
 
     @tf.function
@@ -148,9 +148,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             y_pred = self.model(x, training=True)
             loss_value = self.loss(y, y_pred)
         grads = tape.gradient(loss_value, self.model.trainable_variables)
-        self.grad_tracker += 1
-        self.objective_tracker += 1
+        self.grad_tracker.assign_add(1)
+        self.objective_tracker.assign_add(1)
         return self._from_matrices_to_vector(grads)
+
 
     @tf.function
     def _obj_func_and_grad_call(self, weights, x, y):
@@ -175,8 +176,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             y_pred = self.model(x, training=True)
             loss_value = self.loss(y, y_pred)
         grads = tape.gradient(loss_value, self.model.trainable_variables)
-        self.grad_tracker += 1
-        self.objective_tracker += 1
+        self.grad_tracker.assign_add(1)
+        self.objective_tracker.assign_add(1)
         return loss_value, self._from_matrices_to_vector(grads)
 
     @tf.function
@@ -191,8 +192,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         -------
 
         """
-        self.weights = weights
+        self.weights.assign(weights)
         self._update_model_parameters(weights)
+    
 
     def update_step(self, x, y):
         """
@@ -226,6 +228,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 w_new = self.weights + alpha * d
                 self._save_new_model_weights(w_new)
             # get new objective value and gradient
+            # NOTE: actually not necessary to assign params to model already done in step before
             obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
             # set r_{k+1}
             r_new = -grad_new
@@ -510,7 +513,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 a_star = None
                 break
         return a_star
-
+    
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         """
         Finds the minimizer for a cubic polynomial that goes through the
@@ -544,7 +547,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         if not np.isfinite(xmin):
             return None
         return xmin
-
+    
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
         """
         Finds the minimizer for a quadratic polynomial that goes through
