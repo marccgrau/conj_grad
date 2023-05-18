@@ -13,6 +13,7 @@ import src.data.get_data as get_data
 import src.models.model_archs as model_archs
 from src.optimizer.get_optimizer import fetch_optimizer
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
+from src.optimizer.cg_optimizer import NonlinearCG
 from src.models.tracking import TrainTrack, CustomTqdmCallback, compute_full_loss
 from src.configs import experiment_configs
 from src.utils import setup
@@ -30,7 +31,6 @@ def main(
 ):
     # set seet for replication
     tf.random.set_seed(train_config.seed)
-    tf.config.run_functions_eagerly(True)
 
     # Fetch all data, load to cache
     train_data, test_data = get_data.fetch_data(data_config)
@@ -66,8 +66,11 @@ def main(
     model.summary()
     # Load chosen optimizer
     optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
-
+    
     if isinstance(optimizer, NonlinearCGEager):
+        tf.config.run_functions_eagerly(True)
+
+    if isinstance(optimizer, NonlinearCGEager) or isinstance(optimizer, NonlinearCG):
         # optimizer = NonlinearCGEager(model, train_config.loss_fn)
         model.compile(
             loss=train_config.loss_fn,
@@ -107,7 +110,7 @@ def main(
             tracker.epoch += 1
 
             # Iterate through batches, calc gradients, update weights
-            if isinstance(optimizer, NonlinearCGEager):
+            if isinstance(optimizer, NonlinearCGEager) or isinstance(optimizer, NonlinearCG):
                 epoch_loss = tf.keras.metrics.Mean()
                 for idx, (x, y) in enumerate(train_data):
                     optimizer.apply_gradients(model.trainable_variables, x, y)

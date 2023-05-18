@@ -3,6 +3,7 @@ from src.configs.configs import (
     RMSPROPConfig,
     SGDConfig,
     ADAMConfig,
+    NLCGConfigEager,
     NLCGConfig,
     TaskType,
     TrainConfig,
@@ -17,6 +18,16 @@ optimizers: dict[str, OptimizerConfig] = {
         SGDConfig(name="SGD", learning_rate=0.01, momentum=0.0),
         ADAMConfig(
             name="ADAM", learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-7
+        ),
+        NLCGConfigEager(
+            name="NLCGEager",
+            model=None,
+            loss=None,
+            max_iters=10,
+            tol=1e-7,
+            c1=1e-4,
+            c2=0.9,
+            amax=1.0,
         ),
         NLCGConfig(
             name="NLCG",

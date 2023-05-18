@@ -24,6 +24,7 @@ class DataConfig:
     def full_name(self):
         return f"{self.name}"
 
+
 @dataclasses.dataclass(slots=True)
 class ModelConfig:
     name: str
@@ -85,6 +86,18 @@ class ADAMConfig(KerasOptimizerConfig):
     beta_2: float
     epsilon: float
 
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class NLCGConfigEager(KerasOptimizerConfig):
+    model: tf.keras.Model
+    loss: tf.keras.losses.Loss
+    max_iters: int
+    tol: float
+    c1: float
+    c2: float
+    amax: float
+
+
 @dataclasses.dataclass(slots=True, frozen=True)
 class NLCGConfig(KerasOptimizerConfig):
     model: tf.keras.Model
@@ -94,4 +107,3 @@ class NLCGConfig(KerasOptimizerConfig):
     c1: float
     c2: float
     amax: float
-    
