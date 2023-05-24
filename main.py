@@ -5,7 +5,7 @@ from pathlib import Path
 import pprint
 import os
 import dataclasses
-import datetime
+from datetime import datetime
 
 # from dotenv import find_dotenv, load_dotenv
 
@@ -32,6 +32,13 @@ def main(
 ):
     # set seet for replication
     tf.random.set_seed(train_config.seed)
+    
+    # setup graph tracing
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    logdir_path = 'logs/func/%s' % stamp
+    options = tf.profiler.experimental.ProfilerOptions(host_tracer_level = 3,
+                                                   python_tracer_level = 1,
+                                                   device_tracer_level = 1)
 
     # Fetch all data, load to cache
     train_data, test_data = get_data.fetch_data(data_config)
@@ -120,7 +127,12 @@ def main(
             if isinstance(optimizer, NonlinearCGEager) or isinstance(optimizer, NonlinearCG):
                 epoch_loss = tf.keras.metrics.Mean()
                 for idx, (x, y) in enumerate(train_data):
+                    # tracer start
+                    # tf.profiler.experimental.start('logdir_path', options = options)
+                    # optimizer step
                     optimizer.apply_gradients(model.trainable_variables, x, y)
+                    # tracer stop
+                    # tf.profiler.experimental.stop()
                     tracker.nb_function_calls = optimizer.objective_tracker
                     tracker.nb_gradient_calls = optimizer.grad_tracker
                     loss = epoch_loss.update_state(
