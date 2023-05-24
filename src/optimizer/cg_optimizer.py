@@ -29,6 +29,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.c1 = tf.Variable(c1, name='c1')
         self.c2 = tf.Variable(c2, name='c2')
         self.amax = tf.Variable(amax, name='amax')
+        self.alpha = tf.Variable(initial_value=0.0, name='alpha', dtype=tf.float64)
         self.model = model
         self.loss = loss
         # function call counters
@@ -75,7 +76,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         )
 
     @tf.function
-    def _from_matrices_to_vector(self, matrices):
+    def _from_matrices_to_vector(self, matrices: tf.Tensor):
         """
         Turn weights in model representation to 1D representation
         Parameters
@@ -90,7 +91,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         return tf.dynamic_stitch(indices=self._weight_indices, data=matrices)
 
     @tf.function
-    def _update_model_parameters(self, new_params):
+    def _update_model_parameters(self, new_params: tf.Tensor):
         """
         Assign new set of weights to model
         Parameters
@@ -108,7 +109,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             self.model.trainable_variables[i].assign(param)
 
     @tf.function
-    def _objective_call(self, weights, x, y):
+    def _objective_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
         Calculate value of objective function given a certain set of model weights
         Add +1 to tracker of objective function calls
@@ -127,7 +128,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         return self.loss(y, self.model(x, training=True))
 
     @tf.function
-    def _gradient_call(self, weights, x, y):
+    def _gradient_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
         Calculate value of objective function given a certain set of model weights
         Calculate gradient for the given set of model weights
@@ -154,7 +155,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
 
     @tf.function
-    def _obj_func_and_grad_call(self, weights, x, y):
+    def _obj_func_and_grad_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
         Calculate value of objective function given a certain set of model weights
         Calculate gradient for the given set of model weights
@@ -181,7 +182,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         return loss_value, self._from_matrices_to_vector(grads)
 
     @tf.function
-    def _save_new_model_weights(self, weights) -> None:
+    def _save_new_model_weights(self, weights: tf.Tensor) -> None:
         """
         Get new set of weights and assign it to the model
         Parameters
@@ -196,7 +197,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._update_model_parameters(weights)
     
 
-    def update_step(self, x, y):
+    def update_step(self, x: tf.Tensor, y: tf.Tensor):
         """
         Initialise conjugate gradient method by setting initial search direction
         Nonlinear conjugate gradient optimization procedure with line search satisfying Wolfe conditions
@@ -216,45 +217,43 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         d = r
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
-            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
-            logger.info(f"alpha after line search: {alpha}")
-            # update weights along search directions
-            if alpha is None:
-                logger.info("Alpha is None. Making no step.")
-                # w_new = self.weights + 10e-1 * r
-                # self._save_new_model_weights(w_new)
-                break
-            else:
-                w_new = self.weights + alpha * d
-                self._save_new_model_weights(w_new)
-            # get new objective value and gradient
-            # NOTE: actually not necessary to assign params to model already done in step before
-            obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
-            # set r_{k+1}
-            r_new = -grad_new
-            # Calculate Polak-Ribiére beta
-            beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(
-                tf.multiply(r, r)
-            )
-            # PRP+ with max{beta{PR}, 0}
-            beta = np.maximum(beta, 0)
-            logger.info(f"beta: {beta}")
-            # Determine new search direction for next iteration step
-            d_new = r_new + beta * d
-            # Check for convergence
-            if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
-                logger.info(f"Stop NLCG, no sufficient decrease in value function")
-                break
-            # check if vector norm is smaller than the tolerance
-            if tf.norm(r_new) <= self.tol:
-                logger.info(f"Stop NLCG, gradient norm smaller than tolerance")
-                break
-            # Set new values as old values for next iteration step
-            grad = grad_new
-            r = r_new
-            d = d_new
-            obj_val = obj_val_new
+            self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
+            logger.info(f"alpha after line search: {self.alpha}")
+            d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
             iters += 1
+
+    @tf.function
+    def conj_grad_step(self, alpha, d, r, obj_val, x, y):
+        if alpha == 0.0:
+            tf.print("Alpha is zero. Making no step.")
+            # w_new = self.weights + 10e-1 * r
+            # self._save_new_model_weights(w_new)
+        else:
+            w_new = self.weights + alpha * d
+            self._save_new_model_weights(w_new)
+        # get new objective value and gradient
+        # NOTE: actually not necessary to assign params to model already done in step before
+        obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
+        # set r_{k+1}
+        r_new = -grad_new
+        # Calculate Polak-Ribiére beta
+        beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(
+            tf.multiply(r, r)
+        )
+        # PRP+ with max{beta{PR}, 0}
+        beta = tf.math.maximum(beta, 0)
+        tf.print(f"beta: {beta}")
+        # Determine new search direction for next iteration step
+        d_new = r_new + beta * d
+        # Check for convergence
+        if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
+            tf.print(f"Stop NLCG, no sufficient decrease in value function")
+            return d_new, r_new, obj_val_new
+        # check if vector norm is smaller than the tolerance
+        if tf.norm(r_new) <= self.tol:
+            tf.print(f"Stop NLCG, gradient norm smaller than tolerance")
+            return d_new, r_new, obj_val_new
+        return d_new, r_new, obj_val_new
 
     def apply_gradients(self, vars, x, y):
         """
@@ -323,7 +322,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             # tf.cond(self.initial_cond(), lambda: break_ = True, lambda: None)
             if alpha1 == 0.0 or alpha0 == self.amax:
                 # if tf.math.logical_or(tf.math.equal(alpha1, tf.Variable(0.)), tf.math.equal(alpha0, self.amax)):
-                alpha_star = None
+                alpha_star = 0
                 # phi_star = phi0
                 # derphi_star = None
 
@@ -411,8 +410,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         else:
             alpha_star = alpha1
             warnings.warn("Line search did not converge")
-
-        return alpha_star
+        
+        self.alpha.assign(alpha_star)
 
     def _zoom(
         self,
@@ -430,8 +429,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         Zoom stage of approximate line search satisfying strong Wolfe conditions.
         """
-
-        maxiter = 10
+        # TODO: maxiter as argument
+        maxiter = 20
         i = 0
         delta1 = 0.2  # cubic interpolant check
         delta2 = 0.1  # quadratic interpolant check
@@ -510,10 +509,11 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             i += 1
             if i > maxiter:
                 # Failed to find a conforming step size
-                a_star = None
+                a_star = 0.0
                 break
         return a_star
     
+
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         """
         Finds the minimizer for a cubic polynomial that goes through the
@@ -548,6 +548,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             return None
         return xmin
     
+
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
         """
         Finds the minimizer for a quadratic polynomial that goes through

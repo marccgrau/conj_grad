@@ -33,7 +33,7 @@ optimizers: dict[str, OptimizerConfig] = {
             name="NLCG",
             model=None,
             loss=None,
-            max_iters=15,
+            max_iters=40,
             tol=1e-7,
             c1=1e-4,
             c2=0.9,
@@ -62,7 +62,7 @@ train: dict[TaskType, TrainConfig] = {
     TaskType.MULTICLASS_CLASSIFICATION: TrainConfig(
         seed=42,
         max_calls=120000,
-        max_epochs=20,
+        max_epochs=5,
         loss_fn=custom.crossentropy,
         batch_size=None,
         metrics=[custom.accuracy],
