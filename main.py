@@ -83,6 +83,7 @@ def main(
             loss=train_config.loss_fn,
             optimizer=optimizer,
             metrics=["accuracy"],
+            run_eagerly=False,
         )
 
     # Initiate trainings tracker

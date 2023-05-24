@@ -18,7 +18,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         max_iters=10,
         tol=1e-7,
         c1=1e-4,
-        c2=0.1,
+        c2=0.9,
         amax=1.0,
         name="NLCG",
         **kwargs,
@@ -220,6 +220,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
             logger.info(f"alpha after line search: {self.alpha}")
             d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
+            if self.alpha == 0:
+                break
             iters += 1
 
     @tf.function
@@ -228,6 +230,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.print("Alpha is zero. Making no step.")
             # w_new = self.weights + 10e-1 * r
             # self._save_new_model_weights(w_new)
+            return d, r, obj_val
         else:
             w_new = self.weights + alpha * d
             self._save_new_model_weights(w_new)

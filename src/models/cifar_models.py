@@ -4,17 +4,17 @@ import tensorflow as tf
 class CIFARCNN(tf.keras.Model):
     def __init__(self, num_classes):
         super(CIFARCNN, self).__init__()
-        self.conv1 = tf.keras.layers.Conv2D(2, kernel_size=(3, 3), activation="relu")
+        self.conv1 = tf.keras.layers.Conv2D(4, kernel_size=(3, 3), activation="relu")
         self.bn1 = tf.keras.layers.BatchNormalization()
         self.pool1 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))
-        self.conv2 = tf.keras.layers.Conv2D(4, kernel_size=(3, 3), activation="relu")
+        self.conv2 = tf.keras.layers.Conv2D(8, kernel_size=(3, 3), activation="relu")
         self.bn2 = tf.keras.layers.BatchNormalization()
         self.pool2 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))
-        self.conv3 = tf.keras.layers.Conv2D(8, kernel_size=(3, 3), activation="relu")
+        self.conv3 = tf.keras.layers.Conv2D(16, kernel_size=(3, 3), activation="relu")
         self.bn3 = tf.keras.layers.BatchNormalization()
         self.pool3 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))
         self.flatten = tf.keras.layers.Flatten()
-        self.fc1 = tf.keras.layers.Dense(16, activation="relu")
+        self.fc1 = tf.keras.layers.Dense(32, activation="relu")
         self.fc2 = tf.keras.layers.Dense(num_classes, activation="softmax")
 
     def call(self, inputs):
