@@ -461,6 +461,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         
         tf.while_loop(while_cond, body, [i])
         
+    import tensorflow as tf
 
     def _zoom(
         self,
@@ -485,6 +486,109 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         delta2 = 0.1  # quadratic interpolant check
         phi_rec = phi0
         a_rec = 0
+
+        while True:
+            # interpolate to find a trial step length between a_lo and
+            # a_hi Need to choose interpolation here. Use cubic
+            # interpolation and then if the result is within delta *
+            # dalpha or outside of the interval bounded by a_lo or a_hi
+            # then use quadratic interpolation, if the result is still too
+            # close, then use bisection
+            
+            dalpha = a_hi - a_lo
+            dalpha_cond = dalpha < 0
+            dalpha = tf.where(dalpha_cond, -dalpha, dalpha)
+            a_lo, a_hi = tf.cond(
+            tf.reduce_any(dalpha_cond),
+                lambda: (a_hi, a_lo),
+                lambda: (a_lo, a_hi)
+            )
+
+            # minimizer of cubic interpolant
+            # (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)
+            #
+            # if the result is too close to the end points (or out of the
+            # interval), then use quadratic interpolation with phi_lo,
+            # derphi_lo and phi_hi if the result is still too close to the
+            # end points (or out of the interval) then use bisection
+
+            if i > 0:
+                cchk = delta1 * dalpha
+                a_j = self._cubicmin(
+                    a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
+                )
+            if (i == 0) or (a_j is None) or (a_j > b - cchk) or (a_j < a + cchk):
+                qchk = delta2 * dalpha
+                a_j = self._quadmin(
+                    point_1=a_lo,
+                    obj_1=phi_lo,
+                    grad_1=derphi_lo,
+                    point_2=a_hi,
+                    obj_2=phi_hi,
+                )
+                if (a_j is None) or (a_j > b - qchk) or (a_j < a + qchk):
+                    a_j = a_lo + 0.5 * dalpha
+
+            # Check new value of a_j
+            with tf.control_dependencies([phi0, derphi0]):
+                phi_aj = self._objective_call(
+                    self.weights + tf.cast(a_j, tf.float64) * search_direction,
+                    x,
+                    y,
+                )
+            cond1 = phi_aj > phi0 + self.c1 * a_j * derphi0
+            cond2 = phi_aj >= phi_lo
+            phi_rec, a_rec, a_hi, phi_hi = tf.cond(
+                tf.logical_or(cond1, cond2),
+                lambda: (phi_hi, a_hi, a_j, phi_aj),
+                lambda: (phi_rec, a_rec, a_hi, phi_hi),
+            )
+            derphi_aj = tf.tensordot(
+                self._gradient_call(self.weights + a_j * search_direction, x, y),
+                search_direction,
+                1,
+            )
+            cond3 = tf.math.abs(derphi_aj) <= -self.c2 * derphi0
+            cond4 = derphi_aj * (a_hi - a_lo) >= 0
+            phi_rec, a_rec, a_hi, phi_hi, a_lo, phi_lo, derphi_lo = tf.cond(
+                cond3,
+                lambda: (phi_hi, a_hi, a_lo, phi_lo, a_lo, phi_aj, derphi_aj),
+                lambda: tf.cond(
+                    cond4,
+                    lambda: (phi_rec, a_rec, a_lo, phi_lo, a_lo, phi_aj, derphi_aj),
+                    lambda: (phi_lo, a_lo, a_j, phi_aj, a_j, phi_lo, derphi_aj),
+                ),
+            )
+            i += 1
+            if i > maxiter:
+                # Failed to find a conforming step size
+                a_star = tf.constant(0.0, dtype=tf.float64)
+                break
+        return a_star
+
+    """
+    
+    def _zoom(
+        self,
+        a_lo,
+        a_hi,
+        phi_lo,
+        phi_hi,
+        derphi_lo,
+        phi0,
+        derphi0,
+        search_direction,
+        x,
+        y,
+    ):
+        # TODO: maxiter as argument
+        maxiter = 20
+        i = 0
+        delta1 = 0.2  # cubic interpolant check
+        delta2 = 0.1  # quadratic interpolant check
+        phi_rec = phi0
+        a_rec = 0
+        
         while True:
             # interpolate to find a trial step length between a_lo and
             # a_hi Need to choose interpolation here. Use cubic
@@ -562,13 +666,36 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 break
         return a_star
     
-
+    """
+    
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         """
         Finds the minimizer for a cubic polynomial that goes through the
         points (a,fa), (b,fb), and (c,fc) with derivative at a of fpa.
         If no minimizer can be found, return None.
         """
+        try:
+            C = fpa
+            db = b - a
+            dc = c - a
+            denom = (db * dc) ** 2 * (db - dc)
+
+            d1 = tf.constant([[dc**2, -(db**2)], [-(dc**3), db**3]], dtype=tf.float64)
+            rhs = tf.constant([fb - fa - C * db, fc - fa - C * dc], dtype=tf.float64)
+            [A, B] = tf.linalg.solve(d1, rhs)
+            A /= denom
+            B /= denom
+            radical = B * B - 3 * A * C
+            xmin = a + (-B + tf.sqrt(radical)) / (3 * A)
+        except tf.errors.InvalidArgumentError:
+            return None
+        if not tf.math.is_finite(xmin):
+            return None
+        return xmin
+    
+    
+    """
+    def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         # f(x) = A *(x-a)^3 + B*(x-a)^2 + C*(x-a) + D
         try:
             C = fpa
@@ -596,13 +723,30 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         if not np.isfinite(xmin):
             return None
         return xmin
-    
-
+    """
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
         """
         Finds the minimizer for a quadratic polynomial that goes through
         the points (a,fa), (b,fb) with derivative at a of fpa.
         """
+        try:
+            D = obj_1
+            C = grad_1
+            db = point_2 - point_1 * 1.0
+            B = (obj_2 - D - C * db) / (db * db)
+            xmin = point_1 - C / (2.0 * B)
+        except tf.errors.InvalidArgumentError:
+            return None
+        cond = tf.math.is_finite(xmin)
+        return tf.cond(
+            cond,
+            lambda: xmin,
+            lambda: None
+        )
+    
+    """
+    def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
+
         # f(x) = B*(x-a)^2 + C*(x-a) + D
         try:
             D = obj_1
@@ -615,6 +759,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         if not np.isfinite(xmin):
             return None
         return xmin
+    
+    """
 
     def get_config(self):
         pass
