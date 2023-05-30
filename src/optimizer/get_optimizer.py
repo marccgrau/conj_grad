@@ -10,7 +10,7 @@ from src.configs.configs import (
 )
 from src.utils.custom import as_Kfloat
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
-from src.optimizer.cg_optimizer import NonlinearCG
+from src.optimizer.cg_optimizer_tracer import NonlinearCG
 from src.utils import setup
 
 
