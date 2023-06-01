@@ -31,3 +31,11 @@ class CIFARCNN(tf.keras.Model):
         x = self.fc1(x)
         output = self.fc2(x)
         return output
+
+    def train_step(self, data):
+        # fetch data
+        x, y = data
+        # apply updates from optimizer
+        new_weights = self.optimizer.apply_gradients(self.trainable_variables, x, y)
+        for var, new_value in zip(self.trainable_variables, new_weights):
+            var.assign(new_value)

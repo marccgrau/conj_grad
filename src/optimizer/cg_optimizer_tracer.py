@@ -216,12 +216,12 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.weights.assign(weights)
         self._update_model_parameters(weights)
 
-    def wolfe_and_conj_grad_step(iters, maxiter, d, r, obj_val, x, y):
+    def wolfe_and_conj_grad_step(self, j, maxiter, d, r, obj_val, x, y):
         self.wolfe_line_search(maxiter=maxiter, search_direction=d, x=x, y=y)
         tf.print(self.alpha)
         d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
-        iters = tf.add(iters, 1)
-        return iters, d, r, obj_val
+        j = tf.add(j, 1)
+        return j, d, r, obj_val
 
     def update_step(self, x: tf.Tensor, y: tf.Tensor):
         """
@@ -237,20 +237,34 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         -------
 
         """
-        # iters = tf.constant(0)
+
+        def while_cond_update_step(j, d, r, obj_val):
+            return tf.math.logical_and(
+                tf.math.less(j, self.max_iters),
+                tf.math.equal(self._update_step_break, tf.constant(False)),
+            )
+
+        body_update_step = lambda j, d, r, obj_val: self.wolfe_and_conj_grad_step(
+            j=j, maxiter=10, d=d, r=r, obj_val=obj_val, x=x, y=y
+        )
+
+        j = tf.Variable(0, dtype=tf.float64)
         obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
         r = -grad
         d = r
-        # cond = lambda iters, d, r, obj_val: tf.less(iters, 10)
-        # body = lambda iters, d, r, obj_val: self.wolfe_and_conj_grad_step(iters=iters, maxiter=10, d=d, r=r, obj_val=obj_val)
-        # iters, d, r, obj_val = tf.while_loop(cond=cond, body=body, loop_vars=[iters, d, r, obj_val])
-        for i in range(10):
-            # Perform line search to determine alpha_star
-            self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
-            logger.info(f"alpha after line search: {self.alpha}")
-            d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
-            if self.alpha == 0:
-                break
+
+        j, d, r, obj_val = tf.while_loop(
+            cond=while_cond_update_step,
+            body=body_update_step,
+            loop_vars=[j, d, r, obj_val],
+        )
+        # for i in range(10):
+        # Perform line search to determine alpha_star
+        # self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
+        # logger.info(f"alpha after line search: {self.alpha}")
+        # d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
+        # if self.alpha == 0:
+        #    break
 
     @tf.function
     def conj_grad_step(self, alpha, d, r, obj_val, x, y):
@@ -302,7 +316,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         self.update_step(x, y)
         self._update_model_parameters(self.weights)
-        return self.model.get_weights()
+        return self.model.trainable_variables
 
     def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
         """
