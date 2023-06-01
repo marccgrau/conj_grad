@@ -25,36 +25,39 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
     ):
         super().__init__(name, **kwargs)
         # general variables
-        self.max_iters = tf.Variable(max_iters, name='max_iters')
-        self.tol = tf.Variable(tol, name='tolerance')
-        self.c1 = tf.Variable(c1, name='c1')
-        self.c2 = tf.Variable(c2, name='c2')
-        self.amax = tf.Variable(amax, name='amax')
-        self.alpha = tf.Variable(initial_value=0.0, name='alpha', dtype=tf.float64)
+        self.max_iters = tf.Variable(max_iters, name="max_iters", dtype=tf.float64)
+        self.tol = tf.Variable(tol, name="tolerance")
+        self.c1 = tf.Variable(c1, name="c1")
+        self.c2 = tf.Variable(c2, name="c2")
+        self.amax = tf.Variable(amax, name="amax")
+        self.alpha = tf.Variable(initial_value=0.0, name="alpha", dtype=tf.float64)
         self.model = model
         self.loss = loss
         # function call counters
-        self.objective_tracker = tf.Variable(0, name='objective_tracker')
-        self.grad_tracker = tf.Variable(0, name='gradient_tracker')
+        self.objective_tracker = tf.Variable(0, name="objective_tracker")
+        self.grad_tracker = tf.Variable(0, name="gradient_tracker")
         # model specifics
         self._weight_shapes = tf.shape_n(self.model.trainable_variables)
         self._n_weights = len(self._weight_shapes)
         self._weight_indices = []
         self._weight_partitions = []
         # optimization variables
-        self.alpha_star = tf.Variable(0.0, name='alpha_star', dtype=tf.float64)
-        self.alpha0 = tf.Variable(0.0, name='alpha0', dtype=tf.float64)
-        self.alpha1 = tf.Variable(1.0, name='alpha1', dtype=tf.float64)
-        self.alpha2 = tf.Variable(1.0, name='alpha2', dtype=tf.float64)
-        self.phi_star = tf.Variable(0.0, name='phi_star', dtype=tf.float64)
-        self.phi0 = tf.Variable(0.0, name='phi0', dtype=tf.float64)
-        self.phi_a0 = tf.Variable(0.0, name='phi_a0', dtype=tf.float64)
-        self.phi_a1 = tf.Variable(0.0, name='phi_a1', dtype=tf.float64)
-        self.derphi_star = tf.Variable(0, name='derphi_star', dtype=tf.float64)
-        self.derphi0 = tf.Variable(0, name='derphi0', dtype=tf.float64)
-        self.derphi_a0 = tf.Variable(0, name='derphi_a0', dtype=tf.float64)
-        self.derphi_a1 = tf.Variable(0, name='derphi_a1', dtype=tf.float64)
+        self.alpha_star = tf.Variable(0.0, name="alpha_star", dtype=tf.float64)
+        self.alpha0 = tf.Variable(0.0, name="alpha0", dtype=tf.float64)
+        self.alpha1 = tf.Variable(1.0, name="alpha1", dtype=tf.float64)
+        self.alpha2 = tf.Variable(1.0, name="alpha2", dtype=tf.float64)
+        self.phi_star = tf.Variable(0.0, name="phi_star", dtype=tf.float64)
+        self.phi0 = tf.Variable(0.0, name="phi0", dtype=tf.float64)
+        self.phi_a0 = tf.Variable(0.0, name="phi_a0", dtype=tf.float64)
+        self.phi_a1 = tf.Variable(0.0, name="phi_a1", dtype=tf.float64)
+        self.derphi_star = tf.Variable(0, name="derphi_star", dtype=tf.float64)
+        self.derphi0 = tf.Variable(0, name="derphi0", dtype=tf.float64)
+        self.derphi_a0 = tf.Variable(0, name="derphi_a0", dtype=tf.float64)
+        self.derphi_a1 = tf.Variable(0, name="derphi_a1", dtype=tf.float64)
         self._break = tf.Variable(False, dtype=bool)
+        # zoom function
+        self.delta1 = 0.2  # cubic interpolant check
+        self.delta2 = 0.1  # quadratic interpolant check
 
         param_count = 0
         for i, shape in enumerate(self._weight_shapes):
@@ -69,7 +72,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             )
             param_count += n_params
 
-        self.weights = tf.Variable(self._from_matrices_to_vector(model.trainable_variables), name='weights')
+        self.weights = tf.Variable(
+            self._from_matrices_to_vector(model.trainable_variables), name="weights"
+        )
 
     @tf.function
     def _from_vector_to_matrices(self, vector):
@@ -168,7 +173,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.objective_tracker.assign_add(1)
         return self._from_matrices_to_vector(grads)
 
-
     @tf.function
     def _obj_func_and_grad_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
@@ -210,14 +214,13 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         self.weights.assign(weights)
         self._update_model_parameters(weights)
-    
+
     def wolfe_and_conj_grad_step(iters, maxiter, d, r, obj_val, x, y):
         self.wolfe_line_search(maxiter=maxiter, search_direction=d, x=x, y=y)
         tf.print(self.alpha)
         d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
         iters = tf.add(iters, 1)
         return iters, d, r, obj_val
-        
 
     def update_step(self, x: tf.Tensor, y: tf.Tensor):
         """
@@ -233,13 +236,13 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         -------
 
         """
-        #iters = tf.constant(0)
+        # iters = tf.constant(0)
         obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
         r = -grad
         d = r
-        #cond = lambda iters, d, r, obj_val: tf.less(iters, 10)
-        #body = lambda iters, d, r, obj_val: self.wolfe_and_conj_grad_step(iters=iters, maxiter=10, d=d, r=r, obj_val=obj_val)
-        #iters, d, r, obj_val = tf.while_loop(cond=cond, body=body, loop_vars=[iters, d, r, obj_val])
+        # cond = lambda iters, d, r, obj_val: tf.less(iters, 10)
+        # body = lambda iters, d, r, obj_val: self.wolfe_and_conj_grad_step(iters=iters, maxiter=10, d=d, r=r, obj_val=obj_val)
+        # iters, d, r, obj_val = tf.while_loop(cond=cond, body=body, loop_vars=[iters, d, r, obj_val])
         for i in range(10):
             # Perform line search to determine alpha_star
             self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
@@ -247,8 +250,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
             if self.alpha == 0:
                 break
-
-        
 
     @tf.function
     def conj_grad_step(self, alpha, d, r, obj_val, x, y):
@@ -301,7 +302,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.update_step(x, y)
         self._update_model_parameters(self.weights)
         return self.model.get_weights()
-    
 
     def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
         """
@@ -330,114 +330,155 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.phi0.assign(self._objective_call(self.weights, x, y))
         # We need the directional derivative at 0 following the Wolfe Conditions
         # Thus, we get the gradient at 0 and multiply it with the search direction
-        self.derphi0.assign(tf.tensordot(
-            self._gradient_call(self.weights, x, y), 
-            search_direction, 
-            1
-        ))
+        self.derphi0.assign(
+            tf.tensordot(self._gradient_call(self.weights, x, y), search_direction, 1)
+        )
 
         # Set alpha bounds
-        #alpha0 = tf.Variable(0.0, dtype='float64')
-        #alpha1 = tf.Variable(1.0, dtype='float64')
+        # alpha0 = tf.Variable(0.0, dtype='float64')
+        # alpha1 = tf.Variable(1.0, dtype='float64')
         # Optional setting of an alpha max, if defined
         if self.amax is not None:
             self.alpha1.assign(tf.math.minimum(self.alpha1, self.amax))
 
         # get objective value at a new possible position, i.e. w_k + alpha1 * d_k
-        self.phi_a1.assign(self._objective_call(self.weights + self.alpha1 * search_direction, x, y))
-        
+        self.phi_a1.assign(
+            self._objective_call(self.weights + self.alpha1 * search_direction, x, y)
+        )
+
         # Initialization of all variables for loop
         # Initial alpha_lo equivalent to alpha = 0
         self.phi_a0.assign(self.phi0)
         self.derphi_a0.assign(self.derphi0)
-        i = tf.Variable(0)
-        
-        
+        i = tf.Variable(0, dtype=tf.float64)
+
         # While cond
         def while_cond(i: tf.Variable):
-            return tf.math.logical_and(tf.math.less(i, self.max_iters), tf.math.equal(self._break, tf.constant(False)))
-                                      
-                              
+            return tf.math.logical_and(
+                tf.math.less(i, self.max_iters),
+                tf.math.equal(self._break, tf.constant(False)),
+            )
+
         # Define loop body
         def body(i: tf.Variable):
             def init_cond():
                 return tf.math.logical_or(
-                    tf.math.equal(self.alpha1, tf.Variable(0, dtype=tf.float64)), 
-                    tf.math.equal(self.alpha0, self.amax))
-                
+                    tf.math.equal(self.alpha1, tf.Variable(0, dtype=tf.float64)),
+                    tf.math.equal(self.alpha0, self.amax),
+                )
+
             # necessary for second check
-            self.derphi_a1.assign( tf.tensordot(
-                self._gradient_call(self.weights + self.alpha1 * search_direction, x, y),
-                search_direction,
-                1,
-            ))
-            
+            self.derphi_a1.assign(
+                tf.tensordot(
+                    self._gradient_call(
+                        self.weights + self.alpha1 * search_direction, x, y
+                    ),
+                    search_direction,
+                    1,
+                )
+            )
+
             def first_cond():
                 return tf.math.logical_or(
-                tf.math.greater(self.phi_a1, self.phi0 + self.c1 * self.alpha1 * self.derphi0), 
-                tf.math.logical_and(
-                    tf.math.greater_equal(self.phi_a1, self.phi_a0),
-                    tf.math.greater(tf.Variable(i), 1))
+                    tf.math.greater(
+                        self.phi_a1, self.phi0 + self.c1 * self.alpha1 * self.derphi0
+                    ),
+                    tf.math.logical_and(
+                        tf.math.greater_equal(self.phi_a1, self.phi_a0),
+                        tf.math.greater(tf.Variable(i), 1),
+                    ),
                 )
-            
+
             def first_check_action():
-                self.alpha_star.assign(self._zoom(
-                                  self.alpha0,
-                                  self.alpha1,
-                                  self.phi_a0,
-                                  self.phi_a1,
-                                  self.derphi_a0,
-                                  self.phi0,
-                                  self.derphi0,
-                                  search_direction,
-                                  x,
-                                  y,
-                              ))
+                self.alpha_star.assign(
+                    self._zoom(
+                        self.alpha0,
+                        self.alpha1,
+                        self.phi_a0,
+                        self.phi_a1,
+                        self.derphi_a0,
+                        self.phi0,
+                        self.derphi0,
+                        search_direction,
+                        x,
+                        y,
+                    )
+                )
                 self.alpha.assign(self.alpha_star)
                 self._break.assign(tf.Variable(True))
-            
+
             def second_cond():
-                return tf.math.less_equal(tf.math.abs(self.derphi_a1), -self.c2 * self.derphi0)
-            
+                return tf.math.less_equal(
+                    tf.math.abs(self.derphi_a1), -self.c2 * self.derphi0
+                )
+
             def second_check_action():
                 self.alpha_star.assign(self.alpha1)
-                self.phi_star.assign(self._objective_call(
-                    self.weights + self.alpha_star * search_direction, x, y
-                ))
+                self.phi_star.assign(
+                    self._objective_call(
+                        self.weights + self.alpha_star * search_direction, x, y
+                    )
+                )
                 self.derphi_star.assign(self.derphi_a1)
                 self.alpha.assign(self.alpha_star)
                 self._break.assign(tf.Variable(True))
-            
+
             def third_cond():
-                return tf.math.greater_equal(self.derphi_a1, tf.Variable(0.0, dtype=tf.float64))
-            
+                return tf.math.greater_equal(
+                    self.derphi_a1, tf.Variable(0.0, dtype=tf.float64)
+                )
+
             def third_check_action():
-                self.alpha_star.assign(self._zoom(
-                    self.alpha1,
-                    self.alpha0,
-                    self.phi_a1,
-                    self.phi_a0,
-                    self.derphi_a1,
-                    self.phi0,
-                    self.derphi0,
-                    search_direction,
-                    x,
-                    y,
-                ))
+                self.alpha_star.assign(
+                    self._zoom(
+                        self.alpha1,
+                        self.alpha0,
+                        self.phi_a1,
+                        self.phi_a0,
+                        self.derphi_a1,
+                        self.phi0,
+                        self.derphi0,
+                        search_direction,
+                        x,
+                        y,
+                    )
+                )
                 self.alpha.assign(self.alpha_star)
                 self._break.assign(tf.Variable(True))
-            
-            def final_cond():
-                return tf.math.equal(i, tf.constant(self.max_iters))
-            
-            tf.cond(init_cond(), 
-                    lambda: (self.alpha_star.assign(tf.Variable(0, dtype=tf.float64)), self._break.assign(tf.Variable(False))),
-                    lambda: (self.alpha_star.assign(tf.Variable(0, dtype=tf.float64)), self._break.assign(tf.Variable(True)))
-                   )
-            tf.cond(first_cond(), first_check_action, lambda: self._break.assign(tf.constant(False)))
-            tf.cond(second_cond(), lambda: second_check_action(), lambda: self._break.assign(tf.constant(False)))
-            tf.cond(third_cond(), lambda: third_check_action(), lambda: self._break.assign(tf.constant(False)))
-                
+
+            def false_action():
+                self._break.assign(tf.constant(False))
+
+            def final_cond(i):
+                return tf.math.equal(i, self.max_iters)
+
+            tf.cond(
+                init_cond(),
+                lambda: (
+                    self.alpha_star.assign(tf.Variable(0, dtype=tf.float64)),
+                    self._break.assign(tf.Variable(False)),
+                ),
+                lambda: (
+                    self.alpha_star.assign(tf.Variable(0, dtype=tf.float64)),
+                    self._break.assign(tf.Variable(True)),
+                ),
+            )
+            tf.cond(
+                first_cond(),
+                lambda: first_check_action(),
+                lambda: false_action(),
+            )
+            tf.cond(
+                second_cond(),
+                lambda: second_check_action(),
+                lambda: false_action(),
+            )
+            tf.cond(
+                third_cond(),
+                lambda: third_check_action(),
+                lambda: false_action(),
+            )
+
             self.alpha2.assign(2 * self.alpha1)
 
             self.alpha2.assign(tf.math.minimum(self.alpha2, self.amax))
@@ -445,23 +486,32 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             self.alpha0.assign(self.alpha1)
             self.alpha1.assign(self.alpha2)
             self.phi_a0.assign(self.phi_a1)
-            self.phi_a1.assign(self._objective_call(
-                self.weights + self.alpha1 * search_direction, x, y
-            ))
+            self.phi_a1.assign(
+                self._objective_call(
+                    self.weights + self.alpha1 * search_direction, x, y
+                )
+            )
             self.derphi_a0.assign(self.derphi_a1)
-            
+
             tf.add(i, 1)
             # if no break occurs, then we have not found a suitable alpha after maxiter
-            tf.cond(final_cond, 
-                    lambda: (self.alpha_star.assign(self.alpha1), self.alpha.assign(self.alpha_star), _break.assign(tf.Variable(True))), 
-                    lambda: (self.alpha_star, self.alpha, _break.assign(tf.Variable(False)))
-                   )             
-            
+            tf.cond(
+                final_cond(i),
+                lambda: (
+                    self.alpha_star.assign(self.alpha1),
+                    self.alpha.assign(self.alpha_star),
+                    self._break.assign(tf.Variable(True)),
+                ),
+                lambda: (
+                    self.alpha_star,
+                    self.alpha,
+                    self._break.assign(tf.Variable(False)),
+                ),
+            )
+
         # While loop
-        
+
         tf.while_loop(while_cond, body, [i])
-        
-    import tensorflow as tf
 
     def _zoom(
         self,
@@ -482,10 +532,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         # TODO: maxiter as argument
         maxiter = 20
         i = 0
-        delta1 = 0.2  # cubic interpolant check
-        delta2 = 0.1  # quadratic interpolant check
         phi_rec = phi0
-        a_rec = 0
+        a_rec = tf.Variable(0, dtype=tf.float64)
 
         while True:
             # interpolate to find a trial step length between a_lo and
@@ -494,15 +542,32 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             # dalpha or outside of the interval bounded by a_lo or a_hi
             # then use quadratic interpolation, if the result is still too
             # close, then use bisection
-            
+
             dalpha = a_hi - a_lo
             dalpha_cond = dalpha < 0
             dalpha = tf.where(dalpha_cond, -dalpha, dalpha)
             a_lo, a_hi = tf.cond(
-            tf.reduce_any(dalpha_cond),
-                lambda: (a_hi, a_lo),
-                lambda: (a_lo, a_hi)
+                tf.reduce_any(dalpha_cond), lambda: (a_hi, a_lo), lambda: (a_lo, a_hi)
             )
+
+            def cond_trial_step(dalpha, a_hi, a_lo):
+                return tf.less(dalpha, 0)
+
+            def true_fn_trial_step(dalpha, a_hi, a_lo):
+                return a_hi, a_lo
+
+            def false_fn_trial_step(dalpha, a_hi, a_lo):
+                return a_lo, a_hi
+
+            def trial_step_length(dalpha, a_hi, a_lo):
+                a, b = tf.cond(
+                    cond_trial_step(dalpha, a_hi, a_lo),
+                    lambda: true_fn_trial_step(dalpha, a_hi, a_lo),
+                    lambda: false_fn_trial_step(dalpha, a_hi, a_lo),
+                )
+                return a, b
+
+            a, b = trial_step_length(dalpha, a_hi, a_lo)
 
             # minimizer of cubic interpolant
             # (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)
@@ -512,22 +577,112 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             # derphi_lo and phi_hi if the result is still too close to the
             # end points (or out of the interval) then use bisection
 
-            if i > 0:
-                cchk = delta1 * dalpha
-                a_j = self._cubicmin(
-                    a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
+            def cond_interpolation1(i):
+                return tf.greater(i, 0)
+
+            def cond_interpolation2(i, a_j, a, b, cchk):
+                return tf.logical_or(
+                    tf.equal(i, 0),
+                    tf.logical_or(
+                        tf.equal(a_j, tf.constant(np.nan, dtype=tf.float64)),
+                        tf.logical_or(
+                            tf.greater(a_j, b - cchk), tf.less(a_j, a + cchk)
+                        ),
+                    ),
                 )
-            if (i == 0) or (a_j is None) or (a_j > b - cchk) or (a_j < a + cchk):
-                qchk = delta2 * dalpha
-                a_j = self._quadmin(
+
+            def cond_interpolation3(a_j, a, b, qchk):
+                return tf.logical_or(
+                    tf.equal(a_j, tf.constant(np.nan, dtype=tf.float64)),
+                    tf.logical_or(tf.greater(a_j, b - qchk), tf.less(a_j, a + qchk)),
+                )
+
+            def true_fn_interpolation1(
+                a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
+            ):
+                return self._cubicmin(
+                    a=a_lo,
+                    fa=phi_lo,
+                    fpa=derphi_lo,
+                    b=a_hi,
+                    fb=phi_hi,
+                    c=a_rec,
+                    fc=phi_rec,
+                )
+
+            def true_fn_interpolation2(
+                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+            ):
+                return self._quadmin(
                     point_1=a_lo,
                     obj_1=phi_lo,
                     grad_1=derphi_lo,
                     point_2=a_hi,
                     obj_2=phi_hi,
                 )
-                if (a_j is None) or (a_j > b - qchk) or (a_j < a + qchk):
-                    a_j = a_lo + 0.5 * dalpha
+
+            def true_fn_interpolation3(
+                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+            ):
+                return a_lo + 0.5 * dalpha
+
+            def false_fn_nan(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec):
+                return tf.Variable(np.nan, dtype=tf.float64)
+
+            def false_fn_interpolation(
+                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+            ):
+                return a_j
+
+            def interpolation(
+                i,
+                a_lo,
+                phi_lo,
+                derphi_lo,
+                a_hi,
+                phi_hi,
+                a_rec,
+                phi_rec,
+                a,
+                b,
+                dalpha,
+            ):
+                cchk = self.delta1 * dalpha
+                qchk = self.delta2 * dalpha
+
+                a_j = tf.cond(
+                    cond_interpolation1(i),
+                    lambda: true_fn_interpolation1(
+                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
+                    ),
+                    lambda: false_fn_nan(
+                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
+                    ),
+                )
+                a_j = tf.cond(
+                    cond_interpolation2(i, a_j, a, b, cchk),
+                    lambda: true_fn_interpolation2(
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                    ),
+                    lambda: false_fn_interpolation(
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                    ),
+                )
+                a_j = tf.cond(
+                    cond_interpolation3(a_j, a, b, qchk),
+                    lambda: true_fn_interpolation3(
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                    ),
+                    lambda: false_fn_interpolation(
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                    ),
+                )
+
+                return a_j
+
+            a_j = interpolation(
+                i, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec, a, b, dalpha
+            )
 
             # Check new value of a_j
             with tf.control_dependencies([phi0, derphi0]):
@@ -536,28 +691,43 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     x,
                     y,
                 )
-            cond1 = phi_aj > phi0 + self.c1 * a_j * derphi0
-            cond2 = phi_aj >= phi_lo
+            cond1_aj = phi_aj > phi0 + self.c1 * a_j * derphi0
+            cond2_aj = phi_aj >= phi_lo
+
+            def true_fn_aj1():
+                return phi_hi, a_hi, a_j, phi_aj
+
+            def false_fn_aj1():
+                return phi_rec, a_rec, a_hi, phi_hi
+
             phi_rec, a_rec, a_hi, phi_hi = tf.cond(
-                tf.logical_or(cond1, cond2),
-                lambda: (phi_hi, a_hi, a_j, phi_aj),
-                lambda: (phi_rec, a_rec, a_hi, phi_hi),
+                tf.logical_or(cond1_aj, cond2_aj),
+                lambda: true_fn_aj1(),
+                lambda: false_fn_aj1(),
             )
+
             derphi_aj = tf.tensordot(
                 self._gradient_call(self.weights + a_j * search_direction, x, y),
                 search_direction,
                 1,
             )
-            cond3 = tf.math.abs(derphi_aj) <= -self.c2 * derphi0
-            cond4 = derphi_aj * (a_hi - a_lo) >= 0
-            phi_rec, a_rec, a_hi, phi_hi, a_lo, phi_lo, derphi_lo = tf.cond(
-                cond3,
-                lambda: (phi_hi, a_hi, a_lo, phi_lo, a_lo, phi_aj, derphi_aj),
-                lambda: tf.cond(
-                    cond4,
+            cond3_aj = tf.math.abs(derphi_aj) <= -self.c2 * derphi0
+            cond4_aj = derphi_aj * (a_hi - a_lo) >= 0
+
+            def true_fn_aj2():
+                return phi_hi, a_hi, a_lo, phi_lo, a_lo, phi_aj, derphi_aj
+
+            def false_fn_aj2():
+                return tf.cond(
+                    cond4_aj,
                     lambda: (phi_rec, a_rec, a_lo, phi_lo, a_lo, phi_aj, derphi_aj),
                     lambda: (phi_lo, a_lo, a_j, phi_aj, a_j, phi_lo, derphi_aj),
-                ),
+                )
+
+            phi_rec, a_rec, a_hi, phi_hi, a_lo, phi_lo, derphi_lo = tf.cond(
+                cond3_aj,
+                true_fn_aj2,
+                false_fn_aj2,
             )
             i += 1
             if i > maxiter:
@@ -667,33 +837,37 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         return a_star
     
     """
-    
+
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
-        """
-        Finds the minimizer for a cubic polynomial that goes through the
-        points (a,fa), (b,fb), and (c,fc) with derivative at a of fpa.
-        If no minimizer can be found, return None.
-        """
-        try:
+        with tf.control_dependencies(
+            [
+                tf.debugging.assert_all_finite(
+                    [a, fa, fpa, b, fb, c, fc], "Input values must be finite."
+                )
+            ]
+        ):
             C = fpa
             db = b - a
             dc = c - a
             denom = (db * dc) ** 2 * (db - dc)
 
-            d1 = tf.constant([[dc**2, -(db**2)], [-(dc**3), db**3]], dtype=tf.float64)
-            rhs = tf.constant([fb - fa - C * db, fc - fa - C * dc], dtype=tf.float64)
-            [A, B] = tf.linalg.solve(d1, rhs)
-            A /= denom
-            B /= denom
+            d1 = tf.Variable(
+                [[dc**2, -(db**2)], [-(dc**3), db**3]], dtype=tf.float64
+            )
+            d2 = tf.Variable([[fb - fa - C * db], [fc - fa - C * dc]], dtype=tf.float64)
+            A = d1[0, 0] * d2[0] + d1[0, 1] * d2[1]
+            B = d1[1, 0] * d2[0] + d1[1, 1] * d2[1]
+
+            A = A / denom
+            B = B / denom
+
             radical = B * B - 3 * A * C
             xmin = a + (-B + tf.sqrt(radical)) / (3 * A)
-        except tf.errors.InvalidArgumentError:
-            return None
-        if not tf.math.is_finite(xmin):
-            return None
-        return xmin
-    
-    
+
+            return tf.where(
+                tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
+            )
+
     """
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         # f(x) = A *(x-a)^3 + B*(x-a)^2 + C*(x-a) + D
@@ -724,26 +898,30 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             return None
         return xmin
     """
+
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
-        """
-        Finds the minimizer for a quadratic polynomial that goes through
-        the points (a,fa), (b,fb) with derivative at a of fpa.
-        """
-        try:
+        with tf.control_dependencies(
+            [
+                tf.debugging.assert_all_finite(
+                    [point_1, obj_1, grad_1, point_2, obj_2],
+                    "Input values must be finite.",
+                )
+            ]
+        ):
             D = obj_1
             C = grad_1
-            db = point_2 - point_1 * 1.0
-            B = (obj_2 - D - C * db) / (db * db)
-            xmin = point_1 - C / (2.0 * B)
-        except tf.errors.InvalidArgumentError:
-            return None
-        cond = tf.math.is_finite(xmin)
-        return tf.cond(
-            cond,
-            lambda: xmin,
-            lambda: None
-        )
-    
+            db = point_2 - point_1 * tf.constant(1.0, dtype=tf.float64)
+            B = tf.where(
+                tf.math.is_finite(db),
+                (obj_2 - D - C * db) / (db * db),
+                tf.constant(np.nan, dtype=tf.float64),
+            )
+            xmin = point_1 - C / (tf.constant(2.0, dtype=tf.float64) * B)
+
+            return tf.where(
+                tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
+            )
+
     """
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
 
