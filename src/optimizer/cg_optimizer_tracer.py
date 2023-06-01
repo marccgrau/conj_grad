@@ -55,6 +55,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.derphi_a0 = tf.Variable(0, name="derphi_a0", dtype=tf.float64)
         self.derphi_a1 = tf.Variable(0, name="derphi_a1", dtype=tf.float64)
         self._break = tf.Variable(False, dtype=bool)
+        self._update_step_break = tf.Variable(False, dtype=bool)
         # zoom function
         self.delta1 = 0.2  # cubic interpolant check
         self.delta2 = 0.1  # quadratic interpolant check
@@ -405,6 +406,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     )
                 )
                 self.alpha.assign(self.alpha_star)
+                tf.add(i, 1)
                 self._break.assign(tf.Variable(True))
 
             def second_cond():
@@ -421,6 +423,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
                 self.derphi_star.assign(self.derphi_a1)
                 self.alpha.assign(self.alpha_star)
+                tf.add(i, 1)
                 self._break.assign(tf.Variable(True))
 
             def third_cond():
@@ -444,6 +447,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     )
                 )
                 self.alpha.assign(self.alpha_star)
+                tf.add(i, 1)
                 self._break.assign(tf.Variable(True))
 
             def false_action():
@@ -456,10 +460,12 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 init_cond(),
                 lambda: (
                     self.alpha_star.assign(tf.Variable(0, dtype=tf.float64)),
+                    tf.add(i, 0),
                     self._break.assign(tf.Variable(False)),
                 ),
                 lambda: (
                     self.alpha_star.assign(tf.Variable(0, dtype=tf.float64)),
+                    tf.add(i, 1),
                     self._break.assign(tf.Variable(True)),
                 ),
             )
@@ -508,9 +514,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     self._break.assign(tf.Variable(False)),
                 ),
             )
+            return i
 
         # While loop
-
         tf.while_loop(while_cond, body, [i])
 
     def _zoom(
