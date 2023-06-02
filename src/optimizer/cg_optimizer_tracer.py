@@ -353,8 +353,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         # alpha0 = tf.Variable(0.0, dtype='float64')
         # alpha1 = tf.Variable(1.0, dtype='float64')
         # Optional setting of an alpha max, if defined
-        if self.amax is not None:
-            self.alpha1.assign(tf.math.minimum(self.alpha1, self.amax))
+        self.alpha1.assign(tf.math.minimum(self.alpha1, self.amax))
 
         # get objective value at a new possible position, i.e. w_k + alpha1 * d_k
         self.phi_a1.assign(
