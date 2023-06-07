@@ -39,3 +39,5 @@ class CIFARCNN(tf.keras.Model):
         new_weights = self.optimizer.apply_gradients(self.trainable_variables, x, y)
         for var, new_value in zip(self.trainable_variables, new_weights):
             var.assign(new_value)
+        self.compiled_metrics.update_state(y, self(x))
+        return {m.name: m.result() for m in self.metrics}
