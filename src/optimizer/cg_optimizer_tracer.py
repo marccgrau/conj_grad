@@ -580,24 +580,24 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 tf.reduce_any(dalpha_cond), lambda: (a_hi, a_lo), lambda: (a_lo, a_hi)
             )
 
-            def cond_trial_step(dalpha, a_hi, a_lo):
-                return tf.less(dalpha, 0)
+            def cond_trial_step(a_hi, a_lo):
+                return tf.less(self.dalpha, 0)
 
-            def true_fn_trial_step(dalpha, a_hi, a_lo):
+            def true_fn_trial_step(a_hi, a_lo):
                 return a_hi, a_lo
 
-            def false_fn_trial_step(dalpha, a_hi, a_lo):
+            def false_fn_trial_step(a_hi, a_lo):
                 return a_lo, a_hi
 
-            def trial_step_length(dalpha, a_hi, a_lo):
+            def trial_step_length(a_hi, a_lo):
                 a, b = tf.cond(
-                    cond_trial_step(dalpha, a_hi, a_lo),
-                    lambda: true_fn_trial_step(dalpha, a_hi, a_lo),
-                    lambda: false_fn_trial_step(dalpha, a_hi, a_lo),
+                    cond_trial_step(a_hi, a_lo),
+                    lambda: true_fn_trial_step(a_hi, a_lo),
+                    lambda: false_fn_trial_step(a_hi, a_lo),
                 )
                 return a, b
 
-            a, b = trial_step_length(self.dalpha, a_hi, a_lo)
+            a, b = trial_step_length(a_hi, a_lo)
 
             # minimizer of cubic interpolant
             # (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)
@@ -641,7 +641,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
 
             def true_fn_interpolation2(
-                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
             ):
                 return self._quadmin(
                     point_1=a_lo,
@@ -652,15 +652,15 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
 
             def true_fn_interpolation3(
-                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
             ):
-                return a_lo + 0.5 * dalpha
+                return a_lo + 0.5 * self.dalpha
 
             def false_fn_nan(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec):
                 return self.none_variable
 
             def false_fn_interpolation(
-                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
             ):
                 return a_j
 
@@ -674,10 +674,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 phi_rec,
                 a,
                 b,
-                dalpha,
             ):
-                cchk = self.delta1 * dalpha
-                qchk = self.delta2 * dalpha
+                cchk = self.delta1 * self.dalpha
+                qchk = self.delta2 * self.dalpha
 
                 a_j = tf.cond(
                     cond_interpolation1(),
@@ -691,26 +690,26 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 a_j = tf.cond(
                     cond_interpolation2(a_j, a, b, cchk),
                     lambda: true_fn_interpolation2(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                     lambda: false_fn_interpolation(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                 )
                 a_j = tf.cond(
                     cond_interpolation3(a_j, a, b, qchk),
                     lambda: true_fn_interpolation3(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                     lambda: false_fn_interpolation(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi, dalpha
+                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                 )
 
                 return a_j
 
             a_j = interpolation(
-                a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec, a, b, self.dalpha
+                a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec, a, b
             )
             
             # Check new value of a_j
@@ -763,7 +762,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                                                    lambda: false_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
                                                   )
             
-            a_lo = a_j
+            a_lo = tf.cast(a_j, dtype=tf.float64)
             phi_lo = phi_aj
             derphi_lo = derphi_aj
             self.k.assign_add(1)
