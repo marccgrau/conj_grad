@@ -483,14 +483,14 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 init_cond(),
                 lambda: (
                     self.alpha_star.assign(self.null_variable),
-                    self.i.assign_add(0),
-                    self._break.assign(self.false_variable),
-                ),
-                lambda: (
-                    self.alpha_star.assign(self.null_variable),
                     self.i.assign_add(1),
                     self._break.assign(self.true_variable),
                 ),
+                lambda: (
+                    self.alpha_star.assign(self.null_variable),
+                    self.i.assign_add(0),
+                    self._break.assign(self.false_variable),
+                )
             )
             tf.cond(
                 first_cond(),
@@ -870,6 +870,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
     """
 
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
+        """
         with tf.control_dependencies(
             [
                 tf.debugging.assert_all_finite(
@@ -877,25 +878,26 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
             ]
         ):
-            C = fpa
-            db = b - a
-            dc = c - a
-            denom = (db * dc) ** 2 * (db - dc)
+        """
+        C = fpa
+        db = b - a
+        dc = c - a
+        denom = (db * dc) ** 2 * (db - dc)
 
-            self.d1.assign([[dc**2, -(db**2)], [-(dc**3), db**3]])
-            self.d2.assign([[fb - fa - C * db], [fc - fa - C * dc]])
-            A = self.d1[0, 0] * self.d2[0] + self.d1[0, 1] * self.d2[1]
-            B = self.d1[1, 0] * self.d2[0] + self.d1[1, 1] * self.d2[1]
+        self.d1.assign(tf.reshape([[dc**2, -(db**2)], [-(dc**3), db**3]], [2, 2]))
+        self.d2.assign(tf.reshape([[fb - fa - C * db], [fc - fa - C * dc]], [2, 1]))
+        A = self.d1[0, 0] * self.d2[0] + self.d1[0, 1] * self.d2[1]
+        B = self.d1[1, 0] * self.d2[0] + self.d1[1, 1] * self.d2[1]
 
-            A = A / denom
-            B = B / denom
+        A = A / denom
+        B = B / denom
 
-            radical = B * B - 3 * A * C
-            xmin = a + (-B + tf.sqrt(radical)) / (3 * A)
+        radical = B * B - 3 * A * C
+        xmin = a + (-B + tf.sqrt(radical)) / (3 * A)
 
-            return tf.where(
-                tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
-            )
+        return tf.where(
+            tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
+        )
 
     """
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
@@ -929,6 +931,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
     """
 
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
+        """
         with tf.control_dependencies(
             [
                 tf.debugging.assert_all_finite(
@@ -937,19 +940,20 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
             ]
         ):
-            D = obj_1
-            C = grad_1
-            db = point_2 - point_1 * tf.constant(1.0, dtype=tf.float64)
-            B = tf.where(
-                tf.math.is_finite(db),
-                (obj_2 - D - C * db) / (db * db),
-                tf.constant(np.nan, dtype=tf.float64),
-            )
-            xmin = point_1 - C / (tf.constant(2.0, dtype=tf.float64) * B)
+        """
+        D = obj_1
+        C = grad_1
+        db = point_2 - point_1 * tf.constant(1.0, dtype=tf.float64)
+        B = tf.where(
+            tf.math.is_finite(db),
+            (obj_2 - D - C * db) / (db * db),
+            tf.constant(np.nan, dtype=tf.float64),
+        )
+        xmin = point_1 - C / (tf.constant(2.0, dtype=tf.float64) * B)
 
-            return tf.where(
-                tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
-            )
+        return tf.where(
+            tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
+        )
 
     """
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):

@@ -49,6 +49,7 @@ def _load_cifar10(data_config: DataConfig):
     train_ds, test_ds = tfds.load(
         "cifar10", 
         split=["train", "test"], 
+        data_dir=data_config.path,
         shuffle_files=True, 
         as_supervised=True,
         ) 

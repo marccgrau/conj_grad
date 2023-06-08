@@ -17,7 +17,7 @@ else:
 
 # Get configs
 data_config = experiment_configs.data["CIFAR10"]
-data_config.path = Path('data')
+data_config.path = Path('/home/user/code/data/tf_data')
 optimizer_config = experiment_configs.optimizers["NLCG"]
 train_config = experiment_configs.train[data_config.task]
 
