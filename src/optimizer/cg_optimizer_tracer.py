@@ -94,6 +94,34 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             self._from_matrices_to_vector(model.trainable_variables), name="weights"
         )
 
+        # conj grad vars
+        self.d = tf.Variable(
+            tf.zeros(shape=(param_count,), dtype=tf.float64),
+            name="search_direction",
+            dtype=tf.float64,
+        )
+        self.d_new = tf.Variable(
+            tf.zeros(shape=(param_count,), dtype=tf.float64),
+            name="search_direction",
+            dtype=tf.float64,
+        )
+        self.r = tf.Variable(
+            tf.zeros(shape=(param_count,), dtype=tf.float64),
+            name="neg_grad",
+            dtype=tf.float64,
+        )
+        self.r_new = tf.Variable(
+            tf.zeros(shape=(param_count,), dtype=tf.float64),
+            name="new_neg_grad",
+            dtype=tf.float64,
+        )
+        self.grad = tf.Variable(
+            tf.zeros(shape=(param_count,), dtype=tf.float64),
+            name="grad",
+            dtype=tf.float64,
+        )
+        self.obj_val = tf.Variable(0, name="loss_value", dtype=tf.float64)
+
     @tf.function
     def _from_vector_to_matrices(self, vector):
         """
@@ -163,7 +191,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         self._update_model_parameters(weights)
         self.objective_tracker.assign_add(1)
-        return self.loss(y, self.model(x, training=True))
+        self.obj_val.assign(self.loss(y, self.model(x, training=True)))
 
     @tf.function
     def _gradient_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
@@ -189,7 +217,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         grads = tape.gradient(loss_value, self.model.trainable_variables)
         self.grad_tracker.assign_add(1)
         self.objective_tracker.assign_add(1)
-        return self._from_matrices_to_vector(grads)
+        self.grad.assign(self._from_matrices_to_vector(grads))
 
     @tf.function
     def _obj_func_and_grad_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
@@ -216,7 +244,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         grads = tape.gradient(loss_value, self.model.trainable_variables)
         self.grad_tracker.assign_add(1)
         self.objective_tracker.assign_add(1)
-        return loss_value, self._from_matrices_to_vector(grads)
+        self.obj_val.assign(loss_value)
+        self.grad.assign(self._from_matrices_to_vector(grads))
 
     @tf.function
     def _save_new_model_weights(self, weights: tf.Tensor) -> None:
@@ -233,12 +262,11 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.weights.assign(weights)
         self._update_model_parameters(weights)
 
-    def wolfe_and_conj_grad_step(self, maxiter, d, r, obj_val, x, y):
-        self.wolfe_line_search(maxiter=maxiter, search_direction=d, x=x, y=y)
+    def wolfe_and_conj_grad_step(self, x, y):
+        self.wolfe_line_search(x=x, y=y)
         tf.print("alpha: ", self.alpha)
-        d, r, obj_val = self.conj_grad_step(d, r, obj_val, x, y)
+        self.conj_grad_step(x=x, y=y)
         self.j.assign_add(1)
-        return d, r, obj_val
 
     @tf.function
     def update_step(self, x: tf.Tensor, y: tf.Tensor):
@@ -257,69 +285,67 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         self.j.assign(0)
 
-        def while_cond_update_step(d, r, obj_val):
+        def while_cond_update_step(iterate):
             return tf.math.logical_and(
                 tf.math.less(self.j, self.max_iters),
-                tf.math.equal(self._update_step_break, tf.constant(False)),
+                tf.math.equal(self._update_step_break, self.false_variable),
             )
 
-        body_update_step = lambda d, r, obj_val: self.wolfe_and_conj_grad_step(
-            maxiter=10, d=d, r=r, obj_val=obj_val, x=x, y=y
-        )
+        def body_update_step(iterate):
+            self.wolfe_and_conj_grad_step(x=x, y=y)
+            iterate = self.j
+            return iterate
 
-        obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
-        r = -grad
-        d = r
+        self._obj_func_and_grad_call(self.weights, x, y)
+        self.r.assign(-self.grad)
+        self.d.assign(self.r)
 
-        d, r, obj_val = tf.while_loop(
+        iterate = np.float64(0)
+
+        tf.while_loop(
             cond=while_cond_update_step,
             body=body_update_step,
-            loop_vars=[d, r, obj_val],
+            loop_vars=[iterate],
         )
-        # for i in range(10):
-        # Perform line search to determine alpha_star
-        # self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
-        # logger.info(f"alpha after line search: {self.alpha}")
-        # d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
-        # if self.alpha == 0:
-        #    break
 
     @tf.function
-    def conj_grad_step(self, d, r, obj_val, x, y):
+    def conj_grad_step(self, x, y):
         def alpha_zero_cond():
             return tf.math.equal(self.alpha, self.zero_variable)
 
-        def true_fn(d, r, obj_val):
+        def true_fn():
             tf.print("Alpha is zero. Making no step.")
-            return d, r, obj_val
 
-        def false_fn(d, r, obj_val):
-            w_new = self.weights + self.alpha * d
-            self._save_new_model_weights(w_new)
+        def false_fn():
+            self._save_new_model_weights(
+                tf.math.add(self.weights, tf.math.multiply(self.alpha, self.d))
+            )
 
-            obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
+            self._obj_func_and_grad_call(self.weights, x, y)
             # set r_{k+1}
-            r_new = -grad_new
+            self.r_new.assign(-self.grad)
             # Calculate Polak-Ribiére beta
             # PRP+ with max{beta{PR}, 0}
             self.beta.assign(
                 tf.math.maximum(
-                    tf.reduce_sum(tf.multiply(r_new, r_new - r))
-                    / tf.reduce_sum(tf.multiply(r, r)),
+                    tf.reduce_sum(tf.multiply(self.r_new, self.r_new - self.r))
+                    / tf.reduce_sum(tf.multiply(self.r, self.r)),
                     0,
                 )
             )
 
             tf.print(f"beta: {self.beta}")
             # Determine new search direction for next iteration step
-            d_new = r_new + self.beta * d
+            self.d_new.assign(
+                tf.math.add(self.r_new, tf.math.multiply(self.beta, self.d))
+            )
+            self.d.assign(self.d_new)
             # TODO: Add convergence checks again!
-            return d_new, r_new, obj_val_new
 
         return tf.cond(
             alpha_zero_cond(),
-            lambda: true_fn(d, r, obj_val),
-            lambda: false_fn(d, r, obj_val),
+            lambda: true_fn(),
+            lambda: false_fn(),
         )
 
         """
@@ -354,7 +380,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         return self.model.trainable_variables
 
     @tf.function
-    def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
+    def wolfe_line_search(self, x=None, y=None):
         """
         Find alpha that satisfies strong Wolfe conditions.
         alpha > 0 is assumed to be a descent direction. #NOTE: Not always the case for Polak-Ribiere
@@ -378,12 +404,11 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
         # Leaving the weights as is, is the equivalent of setting alpha to 0
         # Thus, we get objective value at 0 and the gradient at 0
-        self.phi0.assign(self._objective_call(self.weights, x, y))
+        self._obj_func_and_grad_call(self.weights, x, y)
+        self.phi0.assign(self.obj_val)
         # We need the directional derivative at 0 following the Wolfe Conditions
         # Thus, we get the gradient at 0 and multiply it with the search direction
-        self.derphi0.assign(
-            tf.tensordot(self._gradient_call(self.weights, x, y), search_direction, 1)
-        )
+        self.derphi0.assign(tf.tensordot(self.grad, self.d, 1))
 
         # Set alpha bounds
         # alpha0 = tf.Variable(0.0, dtype='float64')
@@ -392,9 +417,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.alpha1.assign(tf.math.minimum(self.alpha1, self.amax))
 
         # get objective value at a new possible position, i.e. w_k + alpha1 * d_k
-        self.phi_a1.assign(
-            self._objective_call(self.weights + self.alpha1 * search_direction, x, y)
+        self._objective_call(
+            tf.math.add(self.weights, tf.math.multiply(self.alpha1, self.d)), x, y
         )
+        self.phi_a1.assign(self.obj_val)
 
         # Initialization of all variables for loop
         # Initial alpha_lo equivalent to alpha = 0
@@ -406,7 +432,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         def while_cond(iterate):
             return tf.math.logical_and(
                 tf.math.less(self.i, self.max_iters),
-                tf.math.equal(self._break, tf.constant(False)),
+                tf.math.equal(self._break, self.false_variable),
             )
 
         # Define loop body
@@ -418,12 +444,13 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
 
             # necessary for second check
+            self._gradient_call(
+                tf.math.add(self.weights, tf.math.multiply(self.alpha1, self.d)), x, y
+            ),
             self.derphi_a1.assign(
                 tf.tensordot(
-                    self._gradient_call(
-                        self.weights + self.alpha1 * search_direction, x, y
-                    ),
-                    search_direction,
+                    self.grad,
+                    self.d,
                     1,
                 )
             )
@@ -449,7 +476,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     self.derphi_a0,
                     self.phi0,
                     self.derphi0,
-                    search_direction,
+                    self.d,
                     x,
                     y,
                 )
@@ -464,11 +491,14 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             def second_check_action():
                 self.alpha_star.assign(self.alpha1)
-                self.phi_star.assign(
-                    self._objective_call(
-                        self.weights + self.alpha_star * search_direction, x, y
-                    )
+                self._objective_call(
+                    tf.math.add(
+                        self.weights, tf.math.multiply(self.alpha_star, self.d)
+                    ),
+                    x,
+                    y,
                 )
+                self.phi_star.assign(self.obj_val)
                 self.derphi_star.assign(self.derphi_a1)
                 self.alpha.assign(self.alpha_star)
                 self.i.assign_add(1)
@@ -487,7 +517,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     self.derphi_a1,
                     self.phi0,
                     self.derphi0,
-                    search_direction,
+                    self.d,
                     x,
                     y,
                 )
@@ -537,11 +567,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             self.alpha0.assign(self.alpha1)
             self.alpha1.assign(self.alpha2)
             self.phi_a0.assign(self.phi_a1)
-            self.phi_a1.assign(
-                self._objective_call(
-                    self.weights + self.alpha1 * search_direction, x, y
-                )
+            self._objective_call(
+                tf.math.add(self.weights, tf.math.multiply(self.alpha1, self.d)), x, y
             )
+            self.phi_a1.assign(self.obj_val)
             self.derphi_a0.assign(self.derphi_a1)
 
             self.i.assign_add(1)
@@ -727,14 +756,20 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             )
 
             # Check new value of a_j
-            phi_aj = self._objective_call(
-                self.weights + a_j * search_direction,
+            self._objective_call(
+                tf.math.add(self.weights, tf.math.multiply(a_j, search_direction)),
                 x,
                 y,
             )
+            phi_aj = self.obj_val
 
             def test_aj_cond(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec):
-                cond1_aj = tf.greater(phi_aj, phi0 + self.c1 * a_j * derphi0)
+                cond1_aj = tf.greater(
+                    phi_aj,
+                    tf.math.add(
+                        phi0, tf.math.multiply(tf.math.multiply(self.c1, a_j), derphi0)
+                    ),
+                )
                 cond2_aj = tf.greater_equal(phi_aj, phi_lo)
                 return tf.math.logical_or(cond1_aj, cond2_aj)
 
@@ -754,9 +789,12 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 ),
             )
 
+            self._gradient_call(
+                tf.math.add(self.weights, tf.math.multiply(a_j, self.d)), x, y
+            )
             derphi_aj = tf.tensordot(
-                self._gradient_call(self.weights + a_j * search_direction, x, y),
-                search_direction,
+                self.grad,
+                self.d,
                 1,
             )
 
