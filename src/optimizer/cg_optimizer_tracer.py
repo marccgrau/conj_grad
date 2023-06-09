@@ -238,7 +238,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
         self.j.assign_add(1)
         return d, r, obj_val
-    
+
     @tf.function
     def update_step(self, x: tf.Tensor, y: tf.Tensor):
         """
@@ -316,7 +316,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.print(f"Stop NLCG, gradient norm smaller than tolerance")
             return d_new, r_new, obj_val_new
         return d_new, r_new, obj_val_new
-    
+
     @tf.function
     def apply_gradients(self, vars, x, y):
         """
@@ -335,7 +335,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.update_step(x, y)
         self._update_model_parameters(self.weights)
         return self.model.trainable_variables
-    
+
     @tf.function
     def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
         """
@@ -495,7 +495,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     self.alpha_star.assign(self.zero_variable),
                     self.i.assign_add(0),
                     self._break.assign(self.false_variable),
-                )
+                ),
             )
             tf.cond(
                 first_cond(),
@@ -548,7 +548,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         iterate = np.float64(0)
         # While loop
         tf.while_loop(while_cond, body, [iterate])
-    
+
     @tf.function
     def _zoom(
         self,
@@ -568,17 +568,31 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         phi_rec = phi0
         a_rec = self.zero_variable
-        
-        def zoom_while_cond(a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0):
-            return tf.math.logical_and(tf.less(self.k, self.max_iter_zoom), tf.math.equal(self._zoom_break, self.false_variable))
-        
-        def zoom_body(a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0):
+
+        def zoom_while_cond(
+            a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0
+        ):
+            return tf.math.logical_and(
+                tf.less(self.k, self.max_iter_zoom),
+                tf.math.equal(self._zoom_break, self.false_variable),
+            )
+
+        def zoom_body(
+            a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0
+        ):
+            print("a_lo shape:", a_lo.shape)
+            print("a_hi shape:", a_hi.shape)
+            print("a_rec shape:", a_rec.shape)
+            print("phi_lo shape:", phi_lo.shape)
+            print("phi_hi shape:", phi_hi.shape)
+            print("phi_rec shape:", phi_rec.shape)
+            print("derphi_lo shape:", derphi_lo.shape)
+            print("phi0 shape:", phi0.shape)
+            print("derphi0 shape:", derphi0.shape)
+
             self.dalpha.assign(a_hi - a_lo)
             dalpha_cond = tf.math.less(self.dalpha, self.zero_variable)
             self.dalpha.assign(tf.where(dalpha_cond, -self.dalpha, self.dalpha))
-            a_lo, a_hi = tf.cond(
-                tf.reduce_any(dalpha_cond), lambda: (a_hi, a_lo), lambda: (a_lo, a_hi)
-            )
 
             def cond_trial_step(a_hi, a_lo):
                 return tf.less(self.dalpha, 0)
@@ -640,9 +654,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     fc=phi_rec,
                 )
 
-            def true_fn_interpolation2(
-                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-            ):
+            def true_fn_interpolation2(a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
                 return self._quadmin(
                     point_1=a_lo,
                     obj_1=phi_lo,
@@ -651,18 +663,14 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     obj_2=phi_hi,
                 )
 
-            def true_fn_interpolation3(
-                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-            ):
+            def true_fn_interpolation3(a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
                 return a_lo + 0.5 * self.dalpha
 
             def false_fn_nan(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec):
                 return self.none_variable
 
-            def false_fn_interpolation(
-                a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-            ):
-                return a_j
+            def false_fn_interpolation(a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
+                return self.none_variable
 
             def interpolation(
                 a_lo,
@@ -705,20 +713,19 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                         a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                 )
-
                 return a_j
 
             a_j = interpolation(
                 a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec, a, b
             )
-            
+
             # Check new value of a_j
             phi_aj = self._objective_call(
                 self.weights + a_j * search_direction,
                 x,
                 y,
             )
-            
+
             def test_aj_cond(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec):
                 cond1_aj = tf.greater(phi_aj, phi0 + self.c1 * a_j * derphi0)
                 cond2_aj = tf.greater_equal(phi_aj, phi_lo)
@@ -726,15 +733,20 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             def true_fn_aj1(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec):
                 return phi_hi, a_hi, a_j, phi_aj
+
             def false_fn_aj1(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec):
                 return phi_rec, a_rec, a_hi, phi_hi
-            
-            phi_rec, a_rec, a_hi, phi_hi = tf.cond(test_aj_cond(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec),
-                                                    lambda: true_fn_aj1(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec),
-                                                    lambda: false_fn_aj1(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec)
-                                                   )
-                    
-                
+
+            phi_rec, a_rec, a_hi, phi_hi = tf.cond(
+                test_aj_cond(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec),
+                lambda: true_fn_aj1(
+                    a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec
+                ),
+                lambda: false_fn_aj1(
+                    a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec
+                ),
+            )
+
             derphi_aj = tf.tensordot(
                 self._gradient_call(self.weights + a_j * search_direction, x, y),
                 search_direction,
@@ -743,42 +755,67 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             def cond3_aj(derphi_aj, derphi0):
                 return tf.math.less_equal(tf.math.abs(derphi_aj), -self.c2 * derphi0)
-            
-            def cond4_aj(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
-                return tf.math.greater_equal(derphi_aj * (a_hi - a_lo), self.zero_variable)
 
-            tf.cond(cond3_aj(derphi_aj, derphi0), 
-                    lambda: (self.alpha_star.assign(a_j), self._zoom_break.assign(self.true_variable)),
-                    lambda: (self.alpha_star, self._zoom_break.assign(self.false_variable))
-                   )
-            
+            def cond4_aj(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
+                return tf.math.greater_equal(
+                    derphi_aj * (a_hi - a_lo), self.zero_variable
+                )
+
+            tf.cond(
+                cond3_aj(derphi_aj, derphi0),
+                lambda: (
+                    self.alpha_star.assign(a_j),
+                    self._zoom_break.assign(self.true_variable),
+                ),
+                lambda: (self.alpha_star, self._zoom_break.assign(self.false_variable)),
+            )
+
             def true_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
                 return phi_hi, a_hi, a_lo, phi_lo
+
             def false_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
                 return phi_lo, a_lo, a_lo, phi_lo
-            
-            phi_rec, a_rec, a_hi, phi_hi = tf.cond(cond4_aj(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
-                                                   lambda: true_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
-                                                   lambda: false_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
-                                                  )
-            
+
+            phi_rec, a_rec, a_hi, phi_hi = tf.cond(
+                cond4_aj(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
+                lambda: true_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
+                lambda: false_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
+            )
+
             a_lo = tf.cast(a_j, dtype=tf.float64)
             phi_lo = phi_aj
             derphi_lo = derphi_aj
             self.k.assign_add(1)
-            
+
             def final_cond():
                 return tf.less(self.k, self.max_iter_zoom)
-            
-            tf.cond(final_cond(),
-                    lambda: (self.alpha_star.assign(self.zero_variable), self._zoom_break.assign(self.true_variable)),
-                    lambda: (self.alpha_star, self._zoom_break.assign(self.false_variable))
-                   )
-            
+
+            tf.cond(
+                final_cond(),
+                lambda: (
+                    self.alpha_star.assign(self.zero_variable),
+                    self._zoom_break.assign(self.true_variable),
+                ),
+                lambda: (self.alpha_star, self._zoom_break.assign(self.false_variable)),
+            )
+
+            print("a_lo shape:", a_lo.shape)
+            print("a_hi shape:", a_hi.shape)
+            print("a_rec shape:", a_rec.shape)
+            print("phi_lo shape:", phi_lo.shape)
+            print("phi_hi shape:", phi_hi.shape)
+            print("phi_rec shape:", phi_rec.shape)
+            print("derphi_lo shape:", derphi_lo.shape)
+            print("phi0 shape:", phi0.shape)
+            print("derphi0 shape:", derphi0.shape)
+
             return a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0
-            
-            
-        tf.while_loop(zoom_while_cond, zoom_body, [a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0])
+
+        tf.while_loop(
+            zoom_while_cond,
+            zoom_body,
+            [a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0],
+        )
 
     """
     
@@ -897,7 +934,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         dc = c - a
         denom = (db * dc) ** 2 * (db - dc)
 
-        self.d1.assign(tf.reshape([[dc**2, -(db**2)], [-(dc**3), db**3]], [2, 2]))
+        self.d1.assign(
+            tf.reshape([[dc**2, -(db**2)], [-(dc**3), db**3]], [2, 2])
+        )
         self.d2.assign(tf.reshape([[fb - fa - C * db], [fc - fa - C * dc]], [2, 1]))
         A = self.d1[0, 0] * self.d2[0] + self.d1[0, 1] * self.d2[1]
         B = self.d1[1, 0] * self.d2[0] + self.d1[1, 1] * self.d2[1]
