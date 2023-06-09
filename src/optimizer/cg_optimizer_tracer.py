@@ -43,6 +43,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._weight_indices = []
         self._weight_partitions = []
         # optimization variables
+        self.beta = tf.Variable(0.0, name="beta", dtype=tf.float64)
         self.alpha_star = tf.Variable(0.0, name="alpha_star", dtype=tf.float64)
         self.alpha0 = tf.Variable(0.0, name="alpha0", dtype=tf.float64)
         self.alpha1 = tf.Variable(1.0, name="alpha1", dtype=tf.float64)
@@ -234,8 +235,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
     def wolfe_and_conj_grad_step(self, maxiter, d, r, obj_val, x, y):
         self.wolfe_line_search(maxiter=maxiter, search_direction=d, x=x, y=y)
-        tf.print(self.alpha)
-        d, r, obj_val = self.conj_grad_step(self.alpha, d, r, obj_val, x, y)
+        tf.print("alpha: ", self.alpha)
+        d, r, obj_val = self.conj_grad_step(d, r, obj_val, x, y)
         self.j.assign_add(1)
         return d, r, obj_val
 
@@ -284,29 +285,44 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         #    break
 
     @tf.function
-    def conj_grad_step(self, alpha, d, r, obj_val, x, y):
-        if alpha == 0.0:
+    def conj_grad_step(self, d, r, obj_val, x, y):
+        def alpha_zero_cond():
+            return tf.math.equal(self.alpha, self.zero_variable)
+
+        def true_fn(d, r, obj_val):
             tf.print("Alpha is zero. Making no step.")
-            # w_new = self.weights + 10e-1 * r
-            # self._save_new_model_weights(w_new)
             return d, r, obj_val
-        else:
-            w_new = self.weights + alpha * d
+
+        def false_fn(d, r, obj_val):
+            w_new = self.weights + self.alpha * d
             self._save_new_model_weights(w_new)
-        # get new objective value and gradient
-        # NOTE: actually not necessary to assign params to model already done in step before
-        obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
-        # set r_{k+1}
-        r_new = -grad_new
-        # Calculate Polak-Ribiére beta
-        beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(
-            tf.multiply(r, r)
+
+            obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
+            # set r_{k+1}
+            r_new = -grad_new
+            # Calculate Polak-Ribiére beta
+            # PRP+ with max{beta{PR}, 0}
+            self.beta.assign(
+                tf.math.maximum(
+                    tf.reduce_sum(tf.multiply(r_new, r_new - r))
+                    / tf.reduce_sum(tf.multiply(r, r)),
+                    0,
+                )
+            )
+
+            tf.print(f"beta: {self.beta}")
+            # Determine new search direction for next iteration step
+            d_new = r_new + self.beta * d
+            # TODO: Add convergence checks again!
+            return d_new, r_new, obj_val_new
+
+        return tf.cond(
+            alpha_zero_cond(),
+            lambda: true_fn(d, r, obj_val),
+            lambda: false_fn(d, r, obj_val),
         )
-        # PRP+ with max{beta{PR}, 0}
-        beta = tf.math.maximum(beta, 0)
-        tf.print(f"beta: {beta}")
-        # Determine new search direction for next iteration step
-        d_new = r_new + beta * d
+
+        """
         # Check for convergence
         if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
             tf.print(f"Stop NLCG, no sufficient decrease in value function")
@@ -316,6 +332,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.print(f"Stop NLCG, gradient norm smaller than tolerance")
             return d_new, r_new, obj_val_new
         return d_new, r_new, obj_val_new
+        """
 
     @tf.function
     def apply_gradients(self, vars, x, y):
