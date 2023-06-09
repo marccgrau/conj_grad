@@ -340,6 +340,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 tf.math.add(self.r_new, tf.math.multiply(self.beta, self.d))
             )
             self.d.assign(self.d_new)
+            self.r.assign(self.r_new)
             # TODO: Add convergence checks again!
 
         return tf.cond(
@@ -458,7 +459,13 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             def first_cond():
                 return tf.math.logical_or(
                     tf.math.greater(
-                        self.phi_a1, self.phi0 + self.c1 * self.alpha1 * self.derphi0
+                        self.phi_a1,
+                        tf.math.add(
+                            self.phi0,
+                            tf.math.multiply(
+                                tf.math.multiply(self.c1, self.alpha1), self.derphi0
+                            ),
+                        ),
                     ),
                     tf.math.logical_and(
                         tf.math.greater_equal(self.phi_a1, self.phi_a0),
@@ -486,7 +493,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             def second_cond():
                 return tf.math.less_equal(
-                    tf.math.abs(self.derphi_a1), -self.c2 * self.derphi0
+                    tf.math.abs(self.derphi_a1),
+                    tf.math.multiply(-self.c2, self.derphi0),
                 )
 
             def second_check_action():
@@ -560,7 +568,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 lambda: false_action(),
             )
 
-            self.alpha2.assign(2 * self.alpha1)
+            self.alpha2.assign(
+                tf.math.multiply(tf.constant(2, dtype=tf.float64), self.alpha1)
+            )
 
             self.alpha2.assign(tf.math.minimum(self.alpha2, self.amax))
 
@@ -626,12 +636,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         def zoom_body(
             a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0
         ):
-            self.dalpha.assign(a_hi - a_lo)
-            dalpha_cond = tf.math.less(self.dalpha, self.zero_variable)
-            self.dalpha.assign(tf.where(dalpha_cond, -self.dalpha, self.dalpha))
+            self.dalpha.assign(tf.math.subtract(a_hi, a_lo))
 
-            def cond_trial_step(a_hi, a_lo):
-                return tf.less(self.dalpha, 0)
+            def cond_trial_step():
+                return tf.math.less(self.dalpha, 0)
 
             def true_fn_trial_step(a_hi, a_lo):
                 return a_hi, a_lo
@@ -641,7 +649,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             def trial_step_length(a_hi, a_lo):
                 a, b = tf.cond(
-                    cond_trial_step(a_hi, a_lo),
+                    cond_trial_step(),
                     lambda: true_fn_trial_step(a_hi, a_lo),
                     lambda: false_fn_trial_step(a_hi, a_lo),
                 )
@@ -700,7 +708,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
 
             def true_fn_interpolation3(a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
-                return a_lo + 0.5 * self.dalpha
+                return tf.math.add(
+                    a_lo,
+                    tf.math.multiply(tf.constant(0.5, dtype=tf.float64), self.dalpha),
+                )
 
             def false_fn_nan(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec):
                 return self.none_variable
