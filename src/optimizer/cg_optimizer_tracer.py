@@ -883,108 +883,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             [a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0],
         )
 
-    """
-    
-    def _zoom(
-        self,
-        a_lo,
-        a_hi,
-        phi_lo,
-        phi_hi,
-        derphi_lo,
-        phi0,
-        derphi0,
-        search_direction,
-        x,
-        y,
-    ):
-        # TODO: maxiter as argument
-        maxiter = 20
-        i = 0
-        delta1 = 0.2  # cubic interpolant check
-        delta2 = 0.1  # quadratic interpolant check
-        phi_rec = phi0
-        a_rec = 0
-        
-        while True:
-            # interpolate to find a trial step length between a_lo and
-            # a_hi Need to choose interpolation here. Use cubic
-            # interpolation and then if the result is within delta *
-            # dalpha or outside of the interval bounded by a_lo or a_hi
-            # then use quadratic interpolation, if the result is still too
-            # close, then use bisection
-
-            dalpha = a_hi - a_lo
-            if dalpha < 0:
-                a, b = a_hi, a_lo
-            else:
-                a, b = a_lo, a_hi
-
-            # minimizer of cubic interpolant
-            # (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)
-            #
-            # if the result is too close to the end points (or out of the
-            # interval), then use quadratic interpolation with phi_lo,
-            # derphi_lo and phi_hi if the result is still too close to the
-            # end points (or out of the interval) then use bisection
-
-            if i > 0:
-                cchk = delta1 * dalpha
-                a_j = self._cubicmin(
-                    a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
-                )
-            if (i == 0) or (a_j is None) or (a_j > b - cchk) or (a_j < a + cchk):
-                qchk = delta2 * dalpha
-                a_j = self._quadmin(
-                    point_1=a_lo,
-                    obj_1=phi_lo,
-                    grad_1=derphi_lo,
-                    point_2=a_hi,
-                    obj_2=phi_hi,
-                )
-                if (a_j is None) or (a_j > b - qchk) or (a_j < a + qchk):
-                    a_j = a_lo + 0.5 * dalpha
-
-            # Check new value of a_j
-            phi_aj = self._objective_call(
-                self.weights + as_Kfloat(a_j) * search_direction,
-                x,
-                y,
-            )
-            if (phi_aj > phi0 + self.c1 * a_j * derphi0) or (phi_aj >= phi_lo):
-                phi_rec = phi_hi
-                a_rec = a_hi
-                a_hi = a_j
-                phi_hi = phi_aj
-            else:
-                derphi_aj = tf.tensordot(
-                    self._gradient_call(self.weights + a_j * search_direction, x, y),
-                    search_direction,
-                    1,
-                )
-                if tf.math.abs(derphi_aj) <= -self.c2 * derphi0:
-                    a_star = a_j
-                    break
-                if derphi_aj * (a_hi - a_lo) >= 0:
-                    phi_rec = phi_hi
-                    a_rec = a_hi
-                    a_hi = a_lo
-                    phi_hi = phi_lo
-                else:
-                    phi_rec = phi_lo
-                    a_rec = a_lo
-                a_lo = a_j
-                phi_lo = phi_aj
-                derphi_lo = derphi_aj
-            i += 1
-            if i > maxiter:
-                # Failed to find a conforming step size
-                a_star = 0.0
-                break
-        return a_star
-    
-    """
-
     def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
         """
         with tf.control_dependencies(
@@ -1080,37 +978,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.where(tf.math.is_finite(self.xmin), self.xmin, self.none_variable)
         )
 
-    """
-    def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
-        # f(x) = A *(x-a)^3 + B*(x-a)^2 + C*(x-a) + D
-        try:
-            C = fpa
-            db = b - a
-            dc = c - a
-            denom = (db * dc) ** 2 * (db - dc)
-            d1 = np.empty((2, 2))
-            d1[0, 0] = dc**2
-            d1[0, 1] = -(db**2)
-            d1[1, 0] = -(dc**3)
-            d1[1, 1] = db**3
-            # TODO: Hardcoded dtype
-            [A, B] = np.dot(
-                d1,
-                np.asarray(
-                    [fb - fa - C * db, fc - fa - C * dc], dtype="float64"
-                ).flatten(),
-            )
-            A /= denom
-            B /= denom
-            radical = B * B - 3 * A * C
-            xmin = a + (-B + np.sqrt(radical)) / (3 * A)
-        except ArithmeticError:
-            return None
-        if not np.isfinite(xmin):
-            return None
-        return xmin
-    """
-
     def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
         """
         with tf.control_dependencies(
@@ -1156,24 +1023,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.a_j.assign(
             tf.where(tf.math.is_finite(self.xmin), self.xmin, self.none_variable)
         )
-
-    """
-    def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
-
-        # f(x) = B*(x-a)^2 + C*(x-a) + D
-        try:
-            D = obj_1
-            C = grad_1
-            db = point_2 - point_1 * 1.0
-            B = (obj_2 - D - C * db) / (db * db)
-            xmin = point_1 - C / (2.0 * B)
-        except ArithmeticError:
-            return None
-        if not np.isfinite(xmin):
-            return None
-        return xmin
-    
-    """
 
     def get_config(self):
         pass
