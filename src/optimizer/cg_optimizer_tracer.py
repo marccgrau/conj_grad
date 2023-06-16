@@ -336,13 +336,19 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             self._obj_func_and_grad_call(self.weights, x, y)
             # set r_{k+1}
-            self.r_new.assign(-self.grad)
+            self.r_new.assign(tf.math.negative(self.grad))
             # Calculate Polak-Ribiére beta
             # PRP+ with max{beta{PR}, 0}
             self.beta.assign(
                 tf.math.maximum(
-                    tf.reduce_sum(tf.multiply(self.r_new, self.r_new - self.r))
-                    / tf.reduce_sum(tf.multiply(self.r, self.r)),
+                    tf.math.divide(
+                        tf.reduce_sum(
+                            tf.multiply(
+                                self.r_new, tf.math.subtract(self.r_new, self.r)
+                            )
+                        ),
+                        tf.reduce_sum(tf.multiply(self.r, self.r)),
+                    ),
                     0,
                 )
             )
@@ -548,7 +554,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 self._break.assign(self.true_variable)
 
             def false_action():
-                self._break.assign(tf.constant(False))
+                self._break.assign(self.false_variable)
 
             def final_cond():
                 return tf.math.equal(self.i, self.max_iters)
@@ -653,7 +659,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             self.dalpha.assign(tf.math.subtract(a_hi, a_lo))
 
             def cond_trial_step():
-                return tf.math.less(self.dalpha, 0)
+                return tf.math.less(self.dalpha, self.zero_variable)
 
             def true_fn_trial_step(a_hi, a_lo):
                 return a_hi, a_lo
@@ -684,11 +690,12 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             def cond_interpolation2(a, b, cchk):
                 return tf.logical_or(
-                    tf.equal(self.k, 0),
+                    tf.equal(self.k, self.zero_variable),
                     tf.logical_or(
                         tf.equal(self.a_j, self.none_variable),
                         tf.logical_or(
-                            tf.greater(self.a_j, b - cchk), tf.less(self.a_j, a + cchk)
+                            tf.greater(self.a_j, tf.math.subtract(b, cchk)),
+                            tf.less(self.a_j, tf.math.add(a, cchk)),
                         ),
                     ),
                 )
@@ -697,7 +704,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 return tf.logical_or(
                     tf.equal(self.a_j, self.none_variable),
                     tf.logical_or(
-                        tf.greater(self.a_j, b - qchk), tf.less(self.a_j, a + qchk)
+                        tf.greater(self.a_j, tf.math.subtract(b, qchk)),
+                        tf.less(self.a_j, tf.math.add(a, qchk)),
                     ),
                 )
 
@@ -750,8 +758,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 a,
                 b,
             ):
-                cchk = self.delta1 * self.dalpha
-                qchk = self.delta2 * self.dalpha
+                cchk = tf.math.multiply(self.delta1, self.dalpha)
+                qchk = tf.math.multiply(self.delta2, self.dalpha)
 
                 tf.cond(
                     cond_interpolation1(),
@@ -785,7 +793,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             # Check new value of a_j
             self._objective_call(
-                tf.math.add(self.weights, tf.math.multiply(self.a_j, search_direction)),
+                tf.math.add(self.weights, tf.math.multiply(self.a_j, self.d)),
                 x,
                 y,
             )
@@ -830,11 +838,15 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             )
 
             def cond3_aj(derphi_aj, derphi0):
-                return tf.math.less_equal(tf.math.abs(derphi_aj), -self.c2 * derphi0)
+                return tf.math.less_equal(
+                    tf.math.abs(derphi_aj),
+                    tf.math.multiply(tf.math.negative(self.c2), derphi0),
+                )
 
             def cond4_aj(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
                 return tf.math.greater_equal(
-                    derphi_aj * (a_hi - a_lo), self.zero_variable
+                    tf.math.multiply(derphi_aj, tf.math.subtract(a_hi, a_lo)),
+                    self.zero_variable,
                 )
 
             tf.cond(
@@ -894,8 +906,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         ):
         """
         self.C.assign(fpa)
-        self.db.assign(b - a)
-        self.dc.assign(c - a)
+        self.db.assign(tf.math.subtract(b, a))
+        self.dc.assign(tf.math.subtract(c, a))
         self.denom.assign(
             tf.math.multiply(
                 tf.math.pow(tf.math.multiply(self.db, self.dc), 2),
