@@ -45,6 +45,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         # optimization variables
         self.beta = tf.Variable(0.0, name="beta", dtype=tf.float64)
         self.alpha_star = tf.Variable(0.0, name="alpha_star", dtype=tf.float64)
+        self.a_j = tf.Variable(1.0, name="alpha_j", dtype=tf.float64)
         self.alpha0 = tf.Variable(0.0, name="alpha0", dtype=tf.float64)
         self.alpha1 = tf.Variable(1.0, name="alpha1", dtype=tf.float64)
         self.alpha2 = tf.Variable(1.0, name="alpha2", dtype=tf.float64)
@@ -61,8 +62,21 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._update_step_break = tf.Variable(False, dtype=bool)
         self._zoom_break = tf.Variable(False, dtype=bool)
         # zoom function
-        self.delta1 = 0.2  # cubic interpolant check
-        self.delta2 = 0.1  # quadratic interpolant check
+        self.delta1 = tf.constant(
+            0.2, name="delta1", dtype=tf.float64
+        )  # cubic interpolant check
+        self.delta2 = tf.constant(
+            0.1, name="delta2", dtype=tf.float64
+        )  # quadratic interpolant check
+        self.xmin = tf.Variable(0.0, name="xmin", dtype=tf.float64)
+        self.A = tf.Variable(0.0, name="A", dtype=tf.float64)
+        self.B = tf.Variable(0.0, name="B", dtype=tf.float64)
+        self.C = tf.Variable(0.0, name="C", dtype=tf.float64)
+        self.D = tf.Variable(0.0, name="D", dtype=tf.float64)
+        self.db = tf.Variable(0.0, name="db", dtype=tf.float64)
+        self.dc = tf.Variable(0.0, name="dc", dtype=tf.float64)
+        self.denom = tf.Variable(0.0, name="denom", dtype=tf.float64)
+        self.radical = tf.Variable(0.0, name="radical", dtype=tf.float64)
         # counters
         self.j = tf.Variable(0, name="update_step_counter", dtype=tf.float64)
         self.i = tf.Variable(0, name="wolfe_ls_counter", dtype=tf.float64)
@@ -284,6 +298,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
         """
         self.j.assign(0)
+        self._obj_func_and_grad_call(self.weights, x, y)
+        self.r.assign(-self.grad)
+        self.d.assign(self.r)
 
         def while_cond_update_step(iterate):
             return tf.math.logical_and(
@@ -295,10 +312,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             self.wolfe_and_conj_grad_step(x=x, y=y)
             iterate = self.j
             return iterate
-
-        self._obj_func_and_grad_call(self.weights, x, y)
-        self.r.assign(-self.grad)
-        self.d.assign(self.r)
 
         iterate = np.float64(0)
 
@@ -415,7 +428,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         # alpha0 = tf.Variable(0.0, dtype='float64')
         # alpha1 = tf.Variable(1.0, dtype='float64')
         # Optional setting of an alpha max, if defined
-        self.alpha1.assign(tf.math.minimum(self.alpha1, self.amax))
+        self.alpha0.assign(self.zero_variable)
+        self.alpha1.assign(tf.math.minimum(self.unity_variable, self.amax))
 
         # get objective value at a new possible position, i.e. w_k + alpha1 * d_k
         self._objective_call(
@@ -668,27 +682,29 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             def cond_interpolation1():
                 return tf.greater(self.k, self.zero_variable)
 
-            def cond_interpolation2(a_j, a, b, cchk):
+            def cond_interpolation2(a, b, cchk):
                 return tf.logical_or(
                     tf.equal(self.k, 0),
                     tf.logical_or(
-                        tf.equal(a_j, self.none_variable),
+                        tf.equal(self.a_j, self.none_variable),
                         tf.logical_or(
-                            tf.greater(a_j, b - cchk), tf.less(a_j, a + cchk)
+                            tf.greater(self.a_j, b - cchk), tf.less(self.a_j, a + cchk)
                         ),
                     ),
                 )
 
-            def cond_interpolation3(a_j, a, b, qchk):
+            def cond_interpolation3(a, b, qchk):
                 return tf.logical_or(
-                    tf.equal(a_j, self.none_variable),
-                    tf.logical_or(tf.greater(a_j, b - qchk), tf.less(a_j, a + qchk)),
+                    tf.equal(self.a_j, self.none_variable),
+                    tf.logical_or(
+                        tf.greater(self.a_j, b - qchk), tf.less(self.a_j, a + qchk)
+                    ),
                 )
 
             def true_fn_interpolation1(
                 a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
             ):
-                return self._cubicmin(
+                self._cubicmin(
                     a=a_lo,
                     fa=phi_lo,
                     fpa=derphi_lo,
@@ -698,8 +714,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     fc=phi_rec,
                 )
 
-            def true_fn_interpolation2(a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
-                return self._quadmin(
+            def true_fn_interpolation2(a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
+                self._quadmin(
                     point_1=a_lo,
                     obj_1=phi_lo,
                     grad_1=derphi_lo,
@@ -707,17 +723,21 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     obj_2=phi_hi,
                 )
 
-            def true_fn_interpolation3(a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
-                return tf.math.add(
-                    a_lo,
-                    tf.math.multiply(tf.constant(0.5, dtype=tf.float64), self.dalpha),
+            def true_fn_interpolation3(a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
+                self.a_j.assign(
+                    tf.math.add(
+                        a_lo,
+                        tf.math.multiply(
+                            tf.constant(0.5, dtype=tf.float64), self.dalpha
+                        ),
+                    )
                 )
 
             def false_fn_nan(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec):
-                return self.none_variable
+                self.a_j.assign(self.none_variable)
 
-            def false_fn_interpolation(a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
-                return self.none_variable
+            def false_fn_interpolation(a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
+                self.a_j.assign(self.none_variable)
 
             def interpolation(
                 a_lo,
@@ -733,7 +753,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 cchk = self.delta1 * self.dalpha
                 qchk = self.delta2 * self.dalpha
 
-                a_j = tf.cond(
+                tf.cond(
                     cond_interpolation1(),
                     lambda: true_fn_interpolation1(
                         a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
@@ -742,33 +762,30 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                         a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
                     ),
                 )
-                a_j = tf.cond(
-                    cond_interpolation2(a_j, a, b, cchk),
+                tf.cond(
+                    cond_interpolation2(a, b, cchk),
                     lambda: true_fn_interpolation2(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
+                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                     lambda: false_fn_interpolation(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
+                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                 )
-                a_j = tf.cond(
-                    cond_interpolation3(a_j, a, b, qchk),
+                tf.cond(
+                    cond_interpolation3(a, b, qchk),
                     lambda: true_fn_interpolation3(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
+                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                     lambda: false_fn_interpolation(
-                        a_j, a_lo, phi_lo, derphi_lo, a_hi, phi_hi
+                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
                 )
-                return a_j
 
-            a_j = interpolation(
-                a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec, a, b
-            )
+            interpolation(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec, a, b)
 
             # Check new value of a_j
             self._objective_call(
-                tf.math.add(self.weights, tf.math.multiply(a_j, search_direction)),
+                tf.math.add(self.weights, tf.math.multiply(self.a_j, search_direction)),
                 x,
                 y,
             )
@@ -778,7 +795,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 cond1_aj = tf.greater(
                     phi_aj,
                     tf.math.add(
-                        phi0, tf.math.multiply(tf.math.multiply(self.c1, a_j), derphi0)
+                        phi0,
+                        tf.math.multiply(tf.math.multiply(self.c1, self.a_j), derphi0),
                     ),
                 )
                 cond2_aj = tf.greater_equal(phi_aj, phi_lo)
@@ -791,17 +809,19 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 return phi_rec, a_rec, a_hi, phi_hi
 
             phi_rec, a_rec, a_hi, phi_hi = tf.cond(
-                test_aj_cond(a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec),
+                test_aj_cond(
+                    self.a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec
+                ),
                 lambda: true_fn_aj1(
-                    a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec
+                    self.a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec
                 ),
                 lambda: false_fn_aj1(
-                    a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec
+                    self.a_j, phi_aj, phi0, derphi0, phi_lo, a_hi, phi_hi, a_rec
                 ),
             )
 
             self._gradient_call(
-                tf.math.add(self.weights, tf.math.multiply(a_j, self.d)), x, y
+                tf.math.add(self.weights, tf.math.multiply(self.a_j, self.d)), x, y
             )
             derphi_aj = tf.tensordot(
                 self.grad,
@@ -820,7 +840,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.cond(
                 cond3_aj(derphi_aj, derphi0),
                 lambda: (
-                    self.alpha_star.assign(a_j),
+                    self.alpha_star.assign(self.a_j),
                     self._zoom_break.assign(self.true_variable),
                 ),
                 lambda: (self.alpha_star, self._zoom_break.assign(self.false_variable)),
@@ -838,7 +858,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 lambda: false_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
             )
 
-            a_lo = tf.cast(a_j, dtype=tf.float64)
+            a_lo = tf.cast(self.a_j, dtype=tf.float64)
             phi_lo = phi_aj
             derphi_lo = derphi_aj
             self.k.assign_add(1)
@@ -975,26 +995,89 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             ]
         ):
         """
-        C = fpa
-        db = b - a
-        dc = c - a
-        denom = (db * dc) ** 2 * (db - dc)
+        self.C.assign(fpa)
+        self.db.assign(b - a)
+        self.dc.assign(c - a)
+        self.denom.assign(
+            tf.math.multiply(
+                tf.math.pow(tf.math.multiply(self.db, self.dc), 2),
+                tf.math.subtract(self.db, self.dc),
+            )
+        )
 
         self.d1.assign(
-            tf.reshape([[dc**2, -(db**2)], [-(dc**3), db**3]], [2, 2])
+            tf.reshape(
+                [
+                    [
+                        tf.math.pow(self.dc, 2),
+                        tf.math.negative(tf.math.pow(self.db, 2)),
+                    ],
+                    [
+                        tf.math.negative(tf.math.pow(self.dc, 3)),
+                        tf.math.pow(self.db, 3),
+                    ],
+                ],
+                [2, 2],
+            )
         )
-        self.d2.assign(tf.reshape([[fb - fa - C * db], [fc - fa - C * dc]], [2, 1]))
-        A = self.d1[0, 0] * self.d2[0] + self.d1[0, 1] * self.d2[1]
-        B = self.d1[1, 0] * self.d2[0] + self.d1[1, 1] * self.d2[1]
+        self.d2.assign(
+            tf.reshape(
+                [
+                    [
+                        tf.math.subtract(
+                            tf.math.subtract(fb, fa), tf.math.multiply(self.C, self.db)
+                        )
+                    ],
+                    [
+                        tf.math.subtract(
+                            tf.math.subtract(fc, fa), tf.math.multiply(self.C, self.dc)
+                        )
+                    ],
+                ],
+                [2, 1],
+            )
+        )
+        self.A.assign(
+            tf.squeeze(
+                tf.math.divide(
+                    tf.math.add(
+                        tf.math.multiply(self.d1[0, 0], self.d2[0]),
+                        tf.math.multiply(self.d1[0, 1], self.d2[1]),
+                    ),
+                    self.denom,
+                )
+            )
+        )
+        self.B.assign(
+            tf.squeeze(
+                tf.math.divide(
+                    tf.math.add(
+                        tf.math.multiply(self.d1[1, 0], self.d2[0]),
+                        tf.math.multiply(self.d1[1, 1], self.d2[1]),
+                    ),
+                    self.denom,
+                )
+            )
+        )
 
-        A = A / denom
-        B = B / denom
+        radical = tf.math.subtract(
+            tf.math.multiply(self.B, self.B),
+            tf.math.multiply(
+                tf.math.multiply(tf.constant(3, dtype=tf.float64), self.A), self.C
+            ),
+        )
+        self.xmin.assign(
+            tf.math.add(
+                a,
+                tf.math.divide(
+                    tf.math.add(tf.math.negative(self.B), tf.sqrt(radical)),
+                    tf.math.multiply(tf.constant(3, dtype=tf.float64), self.A),
+                ),
+            )
+        )
 
-        radical = B * B - 3 * A * C
-        xmin = a + (-B + tf.sqrt(radical)) / (3 * A)
-
-        return tf.where(
-            tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
+        self.a_j.assign(
+            tf.where(tf.math.is_finite(self.xmin), self.xmin, self.none_variable)
         )
 
     """
@@ -1039,18 +1122,39 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             ]
         ):
         """
-        D = obj_1
-        C = grad_1
-        db = point_2 - point_1 * tf.constant(1.0, dtype=tf.float64)
-        B = tf.where(
-            tf.math.is_finite(db),
-            (obj_2 - D - C * db) / (db * db),
-            tf.constant(np.nan, dtype=tf.float64),
+        self.D.assign(obj_1)
+        self.C.assign(grad_1)
+        self.db.assign(
+            tf.math.subtract(
+                point_2, tf.math.multiply(point_1, tf.constant(1.0, dtype=tf.float64))
+            )
         )
-        xmin = point_1 - C / (tf.constant(2.0, dtype=tf.float64) * B)
+        self.B.assign(
+            tf.where(
+                tf.math.is_finite(self.db),
+                tf.math.divide(
+                    (
+                        tf.math.subtract(
+                            obj_2,
+                            tf.math.subtract(self.D, tf.math.multiply(self.C, self.db)),
+                        )
+                    ),
+                    tf.math.multiply(self.db, self.db),
+                ),
+                self.none_variable,
+            )
+        )
+        self.xmin.assign(
+            tf.math.subtract(
+                point_1,
+                tf.math.divide(
+                    self.C, tf.math.multiply(tf.constant(2.0, dtype=tf.float64), self.B)
+                ),
+            )
+        )
 
-        return tf.where(
-            tf.math.is_finite(xmin), xmin, tf.constant(np.nan, dtype=tf.float64)
+        self.a_j.assign(
+            tf.where(tf.math.is_finite(self.xmin), self.xmin, self.none_variable)
         )
 
     """
