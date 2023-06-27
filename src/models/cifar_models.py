@@ -17,15 +17,15 @@ class CIFARCNN(tf.keras.Model):
         self.fc1 = tf.keras.layers.Dense(32, activation="relu")
         self.fc2 = tf.keras.layers.Dense(num_classes, activation="softmax")
 
-    def call(self, inputs):
+    def call(self, inputs, training=True):
         x = self.conv1(inputs)
-        x = self.bn1(x)
+        x = self.bn1(x, training=training)
         x = self.pool1(x)
         x = self.conv2(x)
-        x = self.bn2(x)
+        x = self.bn2(x, training=training)
         x = self.pool2(x)
         x = self.conv3(x)
-        x = self.bn3(x)
+        x = self.bn3(x, training=training)
         x = self.pool3(x)
         x = self.flatten(x)
         x = self.fc1(x)
@@ -36,8 +36,16 @@ class CIFARCNN(tf.keras.Model):
         # fetch data
         x, y = data
         # apply updates from optimizer
-        new_weights = self.optimizer.apply_gradients(self.trainable_variables, x, y)
-        for var, new_value in zip(self.trainable_variables, new_weights):
-            var.assign(new_value)
-        self.compiled_metrics.update_state(y, self(x))
+        # new_weights = self.optimizer.apply_gradients(self.trainable_weights, x, y)
+        self.optimizer.apply_gradients(self.trainable_weights, x, y)
+        # for var, new_value in zip(self.trainable_weights, new_weights):
+        #    var.assign(new_value)
+        # self.compiled_metrics.update_state(y, self(x, training=True))
+        y_pred = self(x, training=True)
+        loss = self.compute_loss(y=y, y_pred=y_pred)
+        for metric in self.metrics:
+            if metric.name == "loss":
+                metric.update_state(loss)
+            else:
+                metric.update_state(y, y_pred)
         return {m.name: m.result() for m in self.metrics}

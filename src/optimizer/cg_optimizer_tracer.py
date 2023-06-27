@@ -15,7 +15,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self,
         model,
         loss,
-        max_iters=10,
+        max_iters=2,
         tol=1e-7,
         c1=1e-4,
         c2=0.9,
@@ -26,7 +26,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         super().__init__(name, **kwargs)
         # general variables
         self.max_iters = tf.Variable(max_iters, name="max_iters", dtype=tf.float64)
-        self.max_iter_zoom = tf.Variable(10, name="max_iter_zoom", dtype=tf.float64)
+        self.max_iter_zoom = tf.Variable(2, name="max_iter_zoom", dtype=tf.float64)
         self.tol = tf.Variable(tol, name="tolerance")
         self.c1 = tf.Variable(c1, name="c1")
         self.c2 = tf.Variable(c2, name="c2")
@@ -38,7 +38,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.objective_tracker = tf.Variable(0, name="objective_tracker")
         self.grad_tracker = tf.Variable(0, name="gradient_tracker")
         # model specifics
-        self._weight_shapes = tf.shape_n(self.model.trainable_variables)
+        self._weight_shapes = tf.shape_n(self.model.trainable_weights)
         self._n_weights = len(self._weight_shapes)
         self._weight_indices = []
         self._weight_partitions = []
@@ -105,7 +105,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             param_count += n_params
 
         self.weights = tf.Variable(
-            self._from_matrices_to_vector(model.trainable_variables), name="weights"
+            self._from_matrices_to_vector(model.trainable_weights), name="weights"
         )
 
         # conj grad vars
@@ -186,7 +186,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         for i, (param, shape) in enumerate(zip(params, self._weight_shapes)):
             param = tf.reshape(param, shape)
             param = tf.cast(param, dtype=K.floatx())
-            self.model.trainable_variables[i].assign(param)
+            self.model.trainable_weights[i].assign(param)
 
     @tf.function
     def _objective_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
@@ -228,7 +228,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         with tf.GradientTape() as tape:
             y_pred = self.model(x, training=True)
             loss_value = self.loss(y, y_pred)
-        grads = tape.gradient(loss_value, self.model.trainable_variables)
+        grads = tape.gradient(loss_value, self.model.trainable_weights)
         self.grad_tracker.assign_add(1)
         self.objective_tracker.assign_add(1)
         self.grad.assign(self._from_matrices_to_vector(grads))
@@ -255,7 +255,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         with tf.GradientTape() as tape:
             y_pred = self.model(x, training=True)
             loss_value = self.loss(y, y_pred)
-        grads = tape.gradient(loss_value, self.model.trainable_variables)
+        grads = tape.gradient(loss_value, self.model.trainable_weights)
         self.grad_tracker.assign_add(1)
         self.objective_tracker.assign_add(1)
         self.obj_val.assign(loss_value)
@@ -277,8 +277,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._update_model_parameters(weights)
 
     def wolfe_and_conj_grad_step(self, x, y):
+        # TODO: Set break condition for update step
         self.wolfe_line_search(x=x, y=y)
-        tf.print("alpha: ", self.alpha)
+        tf.print(self.alpha_star)
         self.conj_grad_step(x=x, y=y)
         self.j.assign_add(1)
 
@@ -311,11 +312,11 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         def body_update_step(iterate):
             self.wolfe_and_conj_grad_step(x=x, y=y)
             iterate = self.j
-            return iterate
+            return (iterate,)
 
-        iterate = np.float64(0)
+        iterate = tf.Variable(0, dtype=tf.float64)
 
-        tf.while_loop(
+        return tf.while_loop(
             cond=while_cond_update_step,
             body=body_update_step,
             loop_vars=[iterate],
@@ -353,7 +354,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 )
             )
 
-            tf.print(f"beta: {self.beta}")
+            tf.print(self.beta)
             # Determine new search direction for next iteration step
             self.d_new.assign(
                 tf.math.add(self.r_new, tf.math.multiply(self.beta, self.d))
@@ -395,9 +396,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         model: tf.keras.Model
         Updated model with new weights after iterations
         """
+        self._save_new_model_weights(self._from_matrices_to_vector(vars))
         self.update_step(x, y)
-        self._update_model_parameters(self.weights)
-        return self.model.trainable_variables
+        self._save_new_model_weights(self.weights)
+        return self.model.trainable_weights
 
     @tf.function
     def wolfe_line_search(self, x=None, y=None):
@@ -575,17 +577,15 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.cond(
                 first_cond(),
                 lambda: first_check_action(),
-                lambda: false_action(),
-            )
-            tf.cond(
-                second_cond(),
-                lambda: second_check_action(),
-                lambda: false_action(),
-            )
-            tf.cond(
-                third_cond(),
-                lambda: third_check_action(),
-                lambda: false_action(),
+                lambda: tf.cond(
+                    second_cond(),
+                    lambda: second_check_action(),
+                    lambda: tf.cond(
+                        third_cond(),
+                        lambda: third_check_action(),
+                        lambda: false_action(),
+                    ),
+                ),
             )
 
             self.alpha2.assign(
@@ -619,11 +619,11 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 ),
             )
             iterate = self.i
-            return iterate
+            return (iterate,)
 
-        iterate = np.float64(0)
+        iterate = tf.Variable(0, dtype=tf.float64)
         # While loop
-        tf.while_loop(while_cond, body, [iterate])
+        return tf.while_loop(while_cond, body, [iterate])
 
     @tf.function
     def _zoom(
