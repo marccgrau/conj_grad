@@ -279,7 +279,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
     def wolfe_and_conj_grad_step(self, x, y):
         # TODO: Set break condition for update step
         self.wolfe_line_search(x=x, y=y)
-        tf.print(self.alpha_star)
+        # tf.print(self.alpha_star)
         self.conj_grad_step(x=x, y=y)
         self.j.assign_add(1)
 
@@ -303,23 +303,25 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.r.assign(-self.grad)
         self.d.assign(self.r)
 
-        def while_cond_update_step(iterate):
+        def while_cond_update_step(iterate, _update_step_break):
             return tf.math.logical_and(
-                tf.math.less(self.j, self.max_iters),
-                tf.math.equal(self._update_step_break, self.false_variable),
+                tf.math.less(iterate, self.max_iters),
+                tf.math.equal(_update_step_break, self.false_variable),
             )
 
-        def body_update_step(iterate):
+        def body_update_step(iterate, _update_step_break):
             self.wolfe_and_conj_grad_step(x=x, y=y)
             iterate = self.j
-            return (iterate,)
+            _update_step_break = self._update_step_break
+            return (iterate, _update_step_break)
 
         iterate = tf.Variable(0, dtype=tf.float64)
+        _update_step_break = tf.Variable(False, dtype=bool)
 
         return tf.while_loop(
             cond=while_cond_update_step,
             body=body_update_step,
-            loop_vars=[iterate],
+            loop_vars=[iterate, _update_step_break],
         )
 
     @tf.function
@@ -331,6 +333,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.print("Alpha is zero. Making no step.")
 
         def false_fn():
+            tf.print(self.alpha)
             self._save_new_model_weights(
                 tf.math.add(self.weights, tf.math.multiply(self.alpha, self.d))
             )
@@ -452,14 +455,14 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.i.assign(0)
 
         # While cond
-        def while_cond(iterate):
+        def while_cond(iterate, _break):
             return tf.math.logical_and(
-                tf.math.less(self.i, self.max_iters),
-                tf.math.equal(self._break, self.false_variable),
+                tf.math.less(iterate, self.max_iters),
+                tf.math.equal(_break, self.false_variable),
             )
 
         # Define loop body
-        def body(iterate):
+        def body(iterate, _break):
             def init_cond():
                 return tf.math.logical_or(
                     tf.math.equal(self.alpha1, self.zero_variable),
@@ -510,8 +513,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     y,
                 )
                 self.alpha.assign(self.alpha_star)
-                self.i.assign_add(1)
+                # self.i.assign_add(1)
                 self._break.assign(self.true_variable)
+                return self._break
 
             def second_cond():
                 return tf.math.less_equal(
@@ -531,8 +535,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 self.phi_star.assign(self.obj_val)
                 self.derphi_star.assign(self.derphi_a1)
                 self.alpha.assign(self.alpha_star)
-                self.i.assign_add(1)
+                # self.i.assign_add(1)
                 self._break.assign(self.true_variable)
+                return self._break
 
             def third_cond():
                 return tf.math.greater_equal(self.derphi_a1, self.zero_variable)
@@ -552,11 +557,13 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     y,
                 )
                 self.alpha.assign(self.alpha_star)
-                self.i.assign_add(1)
+                # self.i.assign_add(1)
                 self._break.assign(self.true_variable)
+                return self._break
 
             def false_action():
                 self._break.assign(self.false_variable)
+                return self._break
 
             def final_cond():
                 return tf.math.equal(self.i, self.max_iters)
@@ -565,15 +572,16 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 init_cond(),
                 lambda: (
                     self.alpha_star.assign(self.zero_variable),
-                    self.i.assign_add(1),
+                    # self.i.assign_add(1),
                     self._break.assign(self.true_variable),
                 ),
                 lambda: (
                     self.alpha_star.assign(self.zero_variable),
-                    self.i.assign_add(0),
+                    # self.i.assign_add(0),
                     self._break.assign(self.false_variable),
                 ),
             )
+
             tf.cond(
                 first_cond(),
                 lambda: first_check_action(),
@@ -587,43 +595,61 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     ),
                 ),
             )
-
-            self.alpha2.assign(
-                tf.math.multiply(tf.constant(2, dtype=tf.float64), self.alpha1)
+            """
+            _break = tf.cond(
+                first_cond(),
+                first_check_action,
+                false_action,
             )
-
-            self.alpha2.assign(tf.math.minimum(self.alpha2, self.amax))
-
-            self.alpha0.assign(self.alpha1)
-            self.alpha1.assign(self.alpha2)
-            self.phi_a0.assign(self.phi_a1)
-            self._objective_call(
-                tf.math.add(self.weights, tf.math.multiply(self.alpha1, self.d)), x, y
+            _break = tf.cond(
+                second_cond(),
+                second_check_action,
+                false_action,
             )
-            self.phi_a1.assign(self.obj_val)
-            self.derphi_a0.assign(self.derphi_a1)
+            _break = tf.cond(third_cond(), third_check_action, false_action)
+            """
+
+            def solution_found_cond():
+                return tf.math.equal(self._break, self.true_variable)
+
+            def solution_found():
+                pass
+
+            def solution_not_found():
+                self.alpha2.assign(
+                    tf.math.multiply(tf.constant(2, dtype=tf.float64), self.alpha1)
+                )
+
+                self.alpha2.assign(tf.math.minimum(self.alpha2, self.amax))
+
+                self.alpha0.assign(self.alpha1)
+                self.alpha1.assign(self.alpha2)
+                self.phi_a0.assign(self.phi_a1)
+                self._objective_call(
+                    tf.math.add(self.weights, tf.math.multiply(self.alpha1, self.d)),
+                    x,
+                    y,
+                )
+                self.phi_a1.assign(self.obj_val)
+                self.derphi_a0.assign(self.derphi_a1)
+
+            tf.cond(
+                solution_found_cond(),
+                lambda: solution_found(),
+                lambda: solution_not_found(),
+            )
 
             self.i.assign_add(1)
-            # if no break occurs, then we have not found a suitable alpha after maxiter
-            tf.cond(
-                final_cond(),
-                lambda: (
-                    self.alpha_star.assign(self.alpha1),
-                    self.alpha.assign(self.alpha_star),
-                    self._break.assign(self.true_variable),
-                ),
-                lambda: (
-                    self.alpha_star,
-                    self.alpha,
-                    self._break.assign(self.false_variable),
-                ),
-            )
+
             iterate = self.i
-            return (iterate,)
+            _break = self._break
+            return (iterate, _break)
 
         iterate = tf.Variable(0, dtype=tf.float64)
+        _break = tf.Variable(False, dtype=bool, shape=[])
+
         # While loop
-        return tf.while_loop(while_cond, body, [iterate])
+        iterate, _break = tf.while_loop(while_cond, body, [iterate, _break])
 
     @tf.function
     def _zoom(
@@ -775,17 +801,14 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     lambda: true_fn_interpolation2(
                         a_lo, phi_lo, derphi_lo, a_hi, phi_hi
                     ),
-                    lambda: false_fn_interpolation(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-                    ),
-                )
-                tf.cond(
-                    cond_interpolation3(a, b, qchk),
-                    lambda: true_fn_interpolation3(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-                    ),
-                    lambda: false_fn_interpolation(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
+                    lambda: tf.cond(
+                        cond_interpolation3(a, b, qchk),
+                        lambda: true_fn_interpolation3(
+                            a_lo, phi_lo, derphi_lo, a_hi, phi_hi
+                        ),
+                        lambda: false_fn_interpolation(
+                            a_lo, phi_lo, derphi_lo, a_hi, phi_hi
+                        ),
                     ),
                 )
 
@@ -881,7 +904,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.cond(
                 final_cond(),
                 lambda: (
-                    self.alpha_star.assign(self.zero_variable),
+                    # self.alpha_star.assign(self.zero_variable),
                     self._zoom_break.assign(self.true_variable),
                 ),
                 lambda: (self.alpha_star, self._zoom_break.assign(self.false_variable)),
