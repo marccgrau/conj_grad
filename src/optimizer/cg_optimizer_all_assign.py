@@ -317,6 +317,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._obj_func_and_grad_call(self.weights, x, y)
         self.r.assign(-self.grad)
         self.d.assign(self.r)
+        self._update_step_break.assign(self.false_variable)
 
         def while_cond_update_step(iterate, _update_step_break):
             return tf.math.logical_and(
@@ -326,6 +327,22 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
         def body_update_step(iterate, _update_step_break):
             self.wolfe_and_conj_grad_step(x=x, y=y)
+
+            def check_alpha_zero():
+                return tf.math.equal(self.alpha, self.zero_variable)
+
+            def stop_update():
+                self._update_step_break.assign(self.true_variable)
+
+            def cont_update():
+                pass
+
+            tf.cond(
+                check_alpha_zero(),
+                stop_update,
+                cont_update,
+            )
+
             iterate = self.j
             _update_step_break = self._update_step_break
             return (iterate, _update_step_break)
@@ -333,7 +350,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         iterate = tf.Variable(0, dtype=tf.float64)
         _update_step_break = tf.Variable(False, dtype=bool)
 
-        return tf.while_loop(
+        iterate, _update_step_break = tf.while_loop(
             cond=while_cond_update_step,
             body=body_update_step,
             loop_vars=[iterate, _update_step_break],
