@@ -61,6 +61,21 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._break = tf.Variable(False, dtype=bool)
         self._update_step_break = tf.Variable(False, dtype=bool)
         self._zoom_break = tf.Variable(False, dtype=bool)
+        self.a_lo = tf.Variable(0.0, name="a_lo", dtype=tf.float64)
+        self.phi_lo = tf.Variable(0.0, name="phi_lo", dtype=tf.float64)
+        self.derphi_lo = tf.Variable(0.0, name="derphi_lo", dtype=tf.float64)
+        self.a_hi = tf.Variable(0.0, name="a_hi", dtype=tf.float64)
+        self.phi_hi = tf.Variable(0.0, name="phi_hi", dtype=tf.float64)
+        self.derphi_hi = tf.Variable(0.0, name="derphi_hi", dtype=tf.float64)
+        self.phi_rec = tf.Variable(0.0, name="phi_rec", dtype=tf.float64)
+        self.a_rec = tf.Variable(0.0, name="a_rec", dtype=tf.float64)
+        self.a_point = tf.Variable(0.0, name="a_point", dtype=tf.float64)
+        self.b_point = tf.Variable(0.0, name="b_point", dtype=tf.float64)
+        self.c_point = tf.Variable(0.0, name="c_point", dtype=tf.float64)
+        self.cchk = tf.Variable(0.0, name="cchk", dtype=tf.float64)
+        self.qchk = tf.Variable(0.0, name="qchk", dtype=tf.float64)
+        self.phi_aj = tf.Variable(0.0, name="phi_aj", dtype=tf.float64)
+        self.derphi_aj = tf.Variable(0.0, name="derphi_aj", dtype=tf.float64)
         # zoom function
         self.delta1 = tf.constant(
             0.2, name="delta1", dtype=tf.float64
@@ -82,7 +97,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.i = tf.Variable(0, name="wolfe_ls_counter", dtype=tf.float64)
         self.k = tf.Variable(0, name="zoom_counter", dtype=tf.float64)
         # constants
-        self.zero_variable = tf.Variable(0, dtype=tf.float64)
+        self.zero_variable = tf.Variable(0.0, dtype=tf.float64)
         self.unity_variable = tf.Variable(1, dtype=tf.float64)
         self.false_variable = tf.Variable(False, dtype=bool)
         self.true_variable = tf.Variable(True, dtype=bool)
@@ -506,9 +521,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     self.phi_a0,
                     self.phi_a1,
                     self.derphi_a0,
-                    self.phi0,
-                    self.derphi0,
-                    self.d,
                     x,
                     y,
                 )
@@ -550,9 +562,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     self.phi_a1,
                     self.phi_a0,
                     self.derphi_a1,
-                    self.phi0,
-                    self.derphi0,
-                    self.d,
                     x,
                     y,
                 )
@@ -564,9 +573,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             def false_action():
                 self._break.assign(self.false_variable)
                 return self._break
-
-            def final_cond():
-                return tf.math.equal(self.i, self.max_iters)
 
             tf.cond(
                 init_cond(),
@@ -659,51 +665,47 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         phi_lo,
         phi_hi,
         derphi_lo,
-        phi0,
-        derphi0,
-        search_direction,
         x,
         y,
     ):
         """
         Zoom stage of approximate line search satisfying strong Wolfe conditions.
         """
-        phi_rec = phi0
-        a_rec = self.zero_variable
+        self.phi_rec = self.phi0
+        self.a_hi.assign(a_hi)
+        self.a_lo.assign(a_lo)
+        self.phi_lo.assign(phi_lo)
+        self.phi_hi.assign(phi_hi)
+        self.derphi_lo.assign(derphi_lo)
+        self.a_rec.assign(self.zero_variable)
         self._zoom_break.assign(self.false_variable)
         self.k.assign(self.zero_variable)
 
-        def zoom_while_cond(
-            a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0
-        ):
+        def zoom_while_cond(zoom_iterate, _zoom_break):
             return tf.math.logical_and(
-                tf.less(self.k, self.max_iter_zoom),
-                tf.math.equal(self._zoom_break, self.false_variable),
+                tf.less(zoom_iterate, self.max_iter_zoom),
+                tf.math.equal(_zoom_break, self.false_variable),
             )
 
-        def zoom_body(
-            a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0
-        ):
-            self.dalpha.assign(tf.math.subtract(a_hi, a_lo))
+        def zoom_body(zoom_iterate, _zoom_break):
+            self.dalpha.assign(tf.math.subtract(self.a_hi, self.a_lo))
 
             def cond_trial_step():
                 return tf.math.less(self.dalpha, self.zero_variable)
 
-            def true_fn_trial_step(a_hi, a_lo):
-                return a_hi, a_lo
+            def true_fn_trial_step():
+                self.a_point.assign(self.a_hi)
+                self.b_point.assign(self.a_lo)
 
-            def false_fn_trial_step(a_hi, a_lo):
-                return a_lo, a_hi
+            def false_fn_trial_step():
+                self.a_point.assign(self.a_lo)
+                self.b_point.assign(self.a_hi)
 
-            def trial_step_length(a_hi, a_lo):
-                a, b = tf.cond(
-                    cond_trial_step(),
-                    lambda: true_fn_trial_step(a_hi, a_lo),
-                    lambda: false_fn_trial_step(a_hi, a_lo),
-                )
-                return a, b
-
-            a, b = trial_step_length(a_hi, a_lo)
+            tf.cond(
+                cond_trial_step(),
+                lambda: true_fn_trial_step(),
+                lambda: false_fn_trial_step(),
+            )
 
             # minimizer of cubic interpolant
             # (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)
@@ -716,108 +718,72 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             def cond_interpolation1():
                 return tf.greater(self.k, self.zero_variable)
 
-            def cond_interpolation2(a, b, cchk):
+            def cond_interpolation2():
                 return tf.logical_or(
                     tf.equal(self.k, self.zero_variable),
                     tf.logical_or(
                         tf.equal(self.a_j, self.none_variable),
                         tf.logical_or(
-                            tf.greater(self.a_j, tf.math.subtract(b, cchk)),
-                            tf.less(self.a_j, tf.math.add(a, cchk)),
+                            tf.greater(
+                                self.a_j, tf.math.subtract(self.b_point, self.cchk)
+                            ),
+                            tf.less(self.a_j, tf.math.add(self.a_point, self.cchk)),
                         ),
                     ),
                 )
 
-            def cond_interpolation3(a, b, qchk):
+            def cond_interpolation3():
                 return tf.logical_or(
                     tf.equal(self.a_j, self.none_variable),
                     tf.logical_or(
-                        tf.greater(self.a_j, tf.math.subtract(b, qchk)),
-                        tf.less(self.a_j, tf.math.add(a, qchk)),
+                        tf.greater(self.a_j, tf.math.subtract(self.b_point, self.qchk)),
+                        tf.less(self.a_j, tf.math.add(self.a_point, self.qchk)),
                     ),
                 )
 
-            def true_fn_interpolation1(
-                a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
-            ):
-                self._cubicmin(
-                    a=a_lo,
-                    fa=phi_lo,
-                    fpa=derphi_lo,
-                    b=a_hi,
-                    fb=phi_hi,
-                    c=a_rec,
-                    fc=phi_rec,
-                )
+            def true_fn_interpolation1():
+                self._cubicmin()
 
-            def true_fn_interpolation2(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, qchk):
-                self._quadmin(
-                    point_1=a_lo,
-                    obj_1=phi_lo,
-                    grad_1=derphi_lo,
-                    point_2=a_hi,
-                    obj_2=phi_hi,
-                )
+            def true_fn_interpolation2():
+                self._quadmin()
                 tf.cond(
-                    cond_interpolation3(a, b, qchk),
-                    lambda: true_fn_interpolation3(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-                    ),
-                    lambda: false_fn_interpolation(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-                    ),
+                    cond_interpolation3(),
+                    lambda: true_fn_interpolation3(),
+                    lambda: false_fn_interpolation(),
                 )
 
-            def true_fn_interpolation3(a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
+            def true_fn_interpolation3():
                 self.a_j.assign(
                     tf.math.add(
-                        a_lo,
+                        self.a_lo,
                         tf.math.multiply(
                             tf.constant(0.5, dtype=tf.float64), self.dalpha
                         ),
                     )
                 )
 
-            def false_fn_nan(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec):
+            def false_fn_nan():
                 self.a_j.assign(self.none_variable)
 
-            def false_fn_interpolation(a_lo, phi_lo, derphi_lo, a_hi, phi_hi):
+            def false_fn_interpolation():
                 pass
 
-            def interpolation(
-                a_lo,
-                phi_lo,
-                derphi_lo,
-                a_hi,
-                phi_hi,
-                a_rec,
-                phi_rec,
-                a,
-                b,
-            ):
-                cchk = tf.math.multiply(self.delta1, self.dalpha)
-                qchk = tf.math.multiply(self.delta2, self.dalpha)
+            def interpolation():
+                self.cchk.assign(tf.math.multiply(self.delta1, self.dalpha))
+                self.qchk.assign(tf.math.multiply(self.delta2, self.dalpha))
 
                 tf.cond(
                     cond_interpolation1(),
-                    lambda: true_fn_interpolation1(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
-                    ),
-                    lambda: false_fn_nan(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec
-                    ),
+                    lambda: true_fn_interpolation1(),
+                    lambda: false_fn_nan(),
                 )
                 tf.cond(
-                    cond_interpolation2(a, b, cchk),
-                    lambda: true_fn_interpolation2(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi, qchk
-                    ),
-                    lambda: false_fn_interpolation(
-                        a_lo, phi_lo, derphi_lo, a_hi, phi_hi
-                    ),
+                    cond_interpolation2(),
+                    lambda: true_fn_interpolation2(),
+                    lambda: false_fn_interpolation(),
                 )
 
-            interpolation(a_lo, phi_lo, derphi_lo, a_hi, phi_hi, a_rec, phi_rec, a, b)
+            interpolation()
 
             # Check new value of a_j
             self._objective_call(
@@ -825,103 +791,113 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 x,
                 y,
             )
-            phi_aj = self.obj_val
+            self.phi_aj.assign(self.obj_val)
 
-            def test_aj_cond(
-                a_j, phi_aj, phi0, derphi0, a_lo, phi_lo, a_hi, phi_hi, a_rec
-            ):
-                cond1_aj = tf.greater(
-                    phi_aj,
-                    tf.math.add(
-                        phi0,
-                        tf.math.multiply(tf.math.multiply(self.c1, self.a_j), derphi0),
+            def test_aj_cond():
+                return tf.logical_or(
+                    tf.greater(
+                        self.phi_aj,
+                        tf.math.add(
+                            self.phi0,
+                            tf.math.multiply(
+                                tf.math.multiply(self.c1, self.a_j), self.derphi0
+                            ),
+                        ),
                     ),
+                    tf.greater_equal(self.phi_aj, self.phi_lo),
                 )
-                cond2_aj = tf.greater_equal(phi_aj, phi_lo)
-                return tf.math.logical_or(cond1_aj, cond2_aj)
 
-            def true_fn_aj1(
-                a_j, phi_aj, phi0, derphi0, a_lo, phi_lo, a_hi, phi_hi, a_rec
-            ):
-                return phi_hi, a_hi, a_j, phi_aj, a_lo, phi_lo, derphi_lo
+            def true_fn_aj1():
+                self.phi_rec.assign(self.phi_hi)
+                self.a_rec.assign(self.a_hi)
+                self.a_hi.assign(self.a_j)
+                self.phi_hi.assign(self.phi_aj)
 
-            def false_fn_aj1(
-                a_j, phi_aj, phi0, derphi0, a_lo, phi_lo, a_hi, phi_hi, a_rec
-            ):
+            def false_fn_aj1():
                 self._gradient_call(
                     tf.math.add(self.weights, tf.math.multiply(self.a_j, self.d)), x, y
                 )
-                derphi_aj = tf.tensordot(
-                    self.grad,
-                    self.d,
-                    1,
+                self.derphi_aj.assign(
+                    tf.tensordot(
+                        self.grad,
+                        self.d,
+                        1,
+                    )
                 )
 
-                def cond3_aj(derphi_aj, derphi0):
+                def cond3_aj():
                     return tf.math.less_equal(
-                        tf.math.abs(derphi_aj),
-                        tf.math.multiply(tf.math.negative(self.c2), derphi0),
+                        tf.math.abs(self.derphi_aj),
+                        tf.math.multiply(tf.math.negative(self.c2), self.derphi0),
                     )
 
-                def cond4_aj(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
+                def true_fn_aj3():
+                    self.alpha_star.assign(self.a_j)
+                    self._zoom_break.assign(self.true_variable)
+
+                def false_fn_aj3():
+                    pass
+
+                tf.cond(
+                    cond3_aj(),
+                    true_fn_aj3,
+                    false_fn_aj3,
+                )
+
+                def cond4_aj():
                     return tf.math.greater_equal(
-                        tf.math.multiply(derphi_aj, tf.math.subtract(a_hi, a_lo)),
+                        tf.math.multiply(
+                            self.derphi_aj, tf.math.subtract(self.a_hi, self.a_lo)
+                        ),
                         self.zero_variable,
                     )
 
-                def true_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
-                    return phi_hi, a_hi, a_lo, phi_lo
+                def true_fn_aj4():
+                    self.phi_rec.assign(self.phi_hi)
+                    self.a_rec.assign(self.a_hi)
+                    self.a_hi.assign(self.a_lo)
+                    self.phi_hi.assign(self.phi_lo)
 
-                def false_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo):
-                    return phi_lo, a_lo, a_hi, phi_hi
+                def false_fn_aj4():
+                    self.phi_rec.assign(self.phi_lo)
+                    self.a_rec.assign(self.a_lo)
 
-                tf.cond(
-                    cond3_aj(derphi_aj, derphi0),
-                    lambda: (
-                        self.alpha_star.assign(self.a_j),
-                        self._zoom_break.assign(self.true_variable),
-                    ),
-                    lambda: (
-                        self.alpha_star,
-                        self._zoom_break.assign(self.false_variable),
-                    ),
-                )
+                def stop_cond():
+                    return tf.math.equal(self._zoom_break, self.true_variable)
 
-                phi_rec, a_rec, a_hi, phi_hi = tf.cond(
-                    cond4_aj(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
-                    lambda: true_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
-                    lambda: false_fn_aj4(derphi_aj, a_hi, a_lo, phi_hi, phi_lo),
-                )
+                def pass_func():
+                    pass
 
-                a_lo = tf.cast(self.a_j, dtype=tf.float64)
-                phi_lo = phi_aj
-                derphi_lo = derphi_aj
+                def no_break_func():
+                    tf.cond(cond4_aj(), true_fn_aj4, false_fn_aj4)
+                    self.a_lo.assign(self.a_j)
+                    self.phi_lo.assign(self.phi_aj)
+                    self.derphi_lo.assign(self.derphi_aj)
 
-                return phi_rec, a_rec, a_hi, phi_hi, a_lo, phi_lo, derphi_lo
+                tf.cond(stop_cond(), pass_func, no_break_func)
 
-            phi_rec, a_rec, a_hi, phi_hi, a_lo, phi_lo, derphi_lo = tf.cond(
-                test_aj_cond(
-                    self.a_j, phi_aj, phi0, derphi0, a_lo, phi_lo, a_hi, phi_hi, a_rec
-                ),
-                lambda: true_fn_aj1(
-                    self.a_j, phi_aj, phi0, derphi0, a_lo, phi_lo, a_hi, phi_hi, a_rec
-                ),
-                lambda: false_fn_aj1(
-                    self.a_j, phi_aj, phi0, derphi0, a_lo, phi_lo, a_hi, phi_hi, a_rec
-                ),
+            tf.cond(
+                test_aj_cond(),
+                true_fn_aj1,
+                false_fn_aj1,
             )
 
             self.k.assign_add(1)
+            zoom_iterate = self.k
+            _zoom_break = self._zoom_break
 
-            return a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0
+            return (zoom_iterate, _zoom_break)
 
-        tf.while_loop(
+        zoom_iterate = tf.Variable(0, dtype=tf.float64)
+        _zoom_break = tf.Variable(False, dtype=bool, shape=[])
+
+        zoom_iterate, _zoom_break = tf.while_loop(
             zoom_while_cond,
             zoom_body,
-            [a_lo, a_hi, a_rec, phi_lo, phi_hi, phi_rec, derphi_lo, phi0, derphi0],
+            [zoom_iterate, _zoom_break],
         )
 
-    def _cubicmin(self, a, fa, fpa, b, fb, c, fc):
+    def _cubicmin(self):
         """
         with tf.control_dependencies(
             [
@@ -931,9 +907,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             ]
         ):
         """
-        self.C.assign(fpa)
-        self.db.assign(tf.math.subtract(b, a))
-        self.dc.assign(tf.math.subtract(c, a))
+        self.C.assign(self.derphi_lo)
+        self.db.assign(tf.math.subtract(self.a_hi, self.a_lo))
+        self.dc.assign(tf.math.subtract(self.a_rec, self.a_lo))
         self.denom.assign(
             tf.math.multiply(
                 tf.math.pow(tf.math.multiply(self.db, self.dc), 2),
@@ -961,12 +937,14 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 [
                     [
                         tf.math.subtract(
-                            tf.math.subtract(fb, fa), tf.math.multiply(self.C, self.db)
+                            tf.math.subtract(self.phi_hi, self.phi_lo),
+                            tf.math.multiply(self.C, self.db),
                         )
                     ],
                     [
                         tf.math.subtract(
-                            tf.math.subtract(fc, fa), tf.math.multiply(self.C, self.dc)
+                            tf.math.subtract(self.phi_rec, self.phi_lo),
+                            tf.math.multiply(self.C, self.dc),
                         )
                     ],
                 ],
@@ -996,17 +974,19 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             )
         )
 
-        radical = tf.math.subtract(
-            tf.math.multiply(self.B, self.B),
-            tf.math.multiply(
-                tf.math.multiply(tf.constant(3, dtype=tf.float64), self.A), self.C
-            ),
+        self.radical.assign(
+            tf.math.subtract(
+                tf.math.multiply(self.B, self.B),
+                tf.math.multiply(
+                    tf.math.multiply(tf.constant(3, dtype=tf.float64), self.A), self.C
+                ),
+            )
         )
         self.xmin.assign(
             tf.math.add(
-                a,
+                self.a_lo,
                 tf.math.divide(
-                    tf.math.add(tf.math.negative(self.B), tf.sqrt(radical)),
+                    tf.math.add(tf.math.negative(self.B), tf.sqrt(self.radical)),
                     tf.math.multiply(tf.constant(3, dtype=tf.float64), self.A),
                 ),
             )
@@ -1016,7 +996,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             tf.where(tf.math.is_finite(self.xmin), self.xmin, self.none_variable)
         )
 
-    def _quadmin(self, point_1, obj_1, grad_1, point_2, obj_2):
+    def _quadmin(self):
         """
         with tf.control_dependencies(
             [
@@ -1027,11 +1007,12 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             ]
         ):
         """
-        self.D.assign(obj_1)
-        self.C.assign(grad_1)
+        self.D.assign(self.phi_lo)
+        self.C.assign(self.derphi_lo)
         self.db.assign(
             tf.math.subtract(
-                point_2, tf.math.multiply(point_1, tf.constant(1.0, dtype=tf.float64))
+                self.a_hi,
+                tf.math.multiply(self.a_lo, tf.constant(1.0, dtype=tf.float64)),
             )
         )
         self.B.assign(
@@ -1040,7 +1021,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 tf.math.divide(
                     (
                         tf.math.subtract(
-                            obj_2,
+                            self.phi_hi,
                             tf.math.subtract(self.D, tf.math.multiply(self.C, self.db)),
                         )
                     ),
@@ -1051,7 +1032,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         )
         self.xmin.assign(
             tf.math.subtract(
-                point_1,
+                self.a_lo,
                 tf.math.divide(
                     self.C, tf.math.multiply(tf.constant(2.0, dtype=tf.float64), self.B)
                 ),
