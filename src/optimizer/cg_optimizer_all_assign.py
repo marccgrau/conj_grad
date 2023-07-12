@@ -315,7 +315,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         self.j.assign(0)
         self._obj_func_and_grad_call(self.weights, x, y)
-        self.r.assign(-self.grad)
+        self.r.assign(tf.math.negative(self.grad))
         self.d.assign(self.r)
         self._update_step_break.assign(self.false_variable)
 
@@ -549,7 +549,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             def second_cond():
                 return tf.math.less_equal(
                     tf.math.abs(self.derphi_a1),
-                    tf.math.multiply(-self.c2, self.derphi0),
+                    tf.math.multiply(tf.math.negative(self.c2), self.derphi0),
                 )
 
             def second_check_action():
