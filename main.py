@@ -14,7 +14,7 @@ import src.data.get_data as get_data
 import src.models.model_archs as model_archs
 from src.optimizer.get_optimizer import fetch_optimizer
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
-from src.optimizer.cg_optimizer import NonlinearCG
+from src.optimizer.cg_optimizer_all_assign import NonlinearCG
 from src.models.tracking import TrainTrack, CustomTqdmCallback, compute_full_loss
 from src.configs import experiment_configs
 from src.utils import setup
