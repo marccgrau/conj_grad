@@ -254,13 +254,26 @@ def parse_args():
         help="Optional batch size if not on full dataset",
         default=None,
     )
+    
+    parser.add_argument(
+        "--gpu",
+        required=False,
+        choices=list(experiment_configs.gpus),
+        help="Choose GPU to use e.g. ['0']",
+        default=None,
+    )
 
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-
+    
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"]=args.gpu
+    
+    tf.config.list_physical_devices('GPU')[0]
+    
     setup.set_dtype(args.dtype)
 
     data_config = experiment_configs.data[args.data]

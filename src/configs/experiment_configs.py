@@ -33,7 +33,7 @@ optimizers: dict[str, OptimizerConfig] = {
             name="NLCG",
             model=None,
             loss=None,
-            max_iters=4,
+            max_iters=10,
             tol=1e-7,
             c1=1e-4,
             c2=0.9,
@@ -101,3 +101,5 @@ data: dict[str, DataConfig] = {
 }
 
 dtypes: frozenset = frozenset(("float32", "float64"))
+
+gpus: frozenset = frozenset(("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"))
