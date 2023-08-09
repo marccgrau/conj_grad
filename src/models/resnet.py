@@ -35,8 +35,19 @@ class ResNetTypeI(tf.keras.Model):
         # fetch data
         x, y = data
         # apply updates from optimizer
-        tempmodel = self.optimizer.apply_gradients(self.trainable_variables, x, y)
-        self.set_weights(tempmodel.get_weights())
+        # new_weights = self.optimizer.apply_gradients(self.trainable_weights, x, y)
+        self.optimizer.apply_gradients(self.trainable_weights, x, y)
+        # for var, new_value in zip(self.trainable_weights, new_weights):
+        #    var.assign(new_value)
+        # self.compiled_metrics.update_state(y, self(x, training=True))
+        y_pred = self(x, training=True)
+        loss = self.compute_loss(y=y, y_pred=y_pred)
+        for metric in self.metrics:
+            if metric.name == "loss":
+                metric.update_state(loss)
+            else:
+                metric.update_state(y, y_pred)
+        return {m.name: m.result() for m in self.metrics}
 
     def call(self, inputs, training=None, mask=None):
         x = self.conv1(inputs)
@@ -114,7 +125,25 @@ class ResNetCIFAR(tf.keras.Model):
         self.fc = tf.keras.layers.Dense(
             units=num_classes, activation=tf.keras.activations.softmax
         )
-
+    
+    def train_step(self, data):
+        # fetch data
+        x, y = data
+        # apply updates from optimizer
+        # new_weights = self.optimizer.apply_gradients(self.trainable_weights, x, y)
+        self.optimizer.apply_gradients(self.trainable_weights, x, y)
+        # for var, new_value in zip(self.trainable_weights, new_weights):
+        #    var.assign(new_value)
+        # self.compiled_metrics.update_state(y, self(x, training=True))
+        y_pred = self(x, training=True)
+        loss = self.compute_loss(y=y, y_pred=y_pred)
+        for metric in self.metrics:
+            if metric.name == "loss":
+                metric.update_state(loss)
+            else:
+                metric.update_state(y, y_pred)
+        return {m.name: m.result() for m in self.metrics}
+    
     def call(self, inputs, training=None, mask=None):
         x = self.conv1(inputs)
         x = tf.nn.relu(x)

@@ -35,8 +35,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.model = model
         self.loss = loss
         # function call counters
-        self.objective_tracker = tf.Variable(0, name="objective_tracker", dtype=tf.float64)
-        self.grad_tracker = tf.Variable(0, name="gradient_tracker", dtype=tf.float64)
+        self.objective_tracker = tf.Variable(0, name="objective_tracker")
+        self.grad_tracker = tf.Variable(0, name="gradient_tracker")
         # model specifics
         self._weight_shapes = tf.shape_n(self.model.trainable_weights)
         self._n_weights = len(self._weight_shapes)
@@ -58,6 +58,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.derphi0 = tf.Variable(0, name="derphi0", dtype=tf.float64)
         self.derphi_a0 = tf.Variable(0, name="derphi_a0", dtype=tf.float64)
         self.derphi_a1 = tf.Variable(0, name="derphi_a1", dtype=tf.float64)
+        self._break = tf.Variable(False, dtype=bool)
+        self._update_step_break = tf.Variable(False, dtype=bool)
+        self._zoom_break = tf.Variable(False, dtype=bool)
         self.a_lo = tf.Variable(0.0, name="a_lo", dtype=tf.float64)
         self.phi_lo = tf.Variable(0.0, name="phi_lo", dtype=tf.float64)
         self.derphi_lo = tf.Variable(0.0, name="derphi_lo", dtype=tf.float64)
@@ -89,13 +92,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.dc = tf.Variable(0.0, name="dc", dtype=tf.float64)
         self.denom = tf.Variable(0.0, name="denom", dtype=tf.float64)
         self.radical = tf.Variable(0.0, name="radical", dtype=tf.float64)
-        # loop vars
-        self._update_step_iterate = tf.Variable(0, name="update_step_counter", dtype=tf.float64)
-        self._wolfe_iterate = tf.Variable(0, name="wolfe_ls_counter", dtype=tf.float64)
-        self._zoom_iterate = tf.Variable(0, name="zoom_counter", dtype=tf.float64)
-        self._wolfe_break = tf.Variable(False, dtype=bool)
-        self._update_step_break = tf.Variable(False, dtype=bool)
-        self._zoom_break = tf.Variable(False, dtype=bool)
+        # counters
+        self.j = tf.Variable(0, name="update_step_counter", dtype=tf.float64)
+        self.i = tf.Variable(0, name="wolfe_ls_counter", dtype=tf.float64)
+        self.k = tf.Variable(0, name="zoom_counter", dtype=tf.float64)
         # constants
         self.zero_variable = tf.Variable(0.0, dtype=tf.float64)
         self.unity_variable = tf.Variable(1, dtype=tf.float64)
@@ -105,9 +105,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         # empty variables for interpolation
         self.d1 = tf.Variable([[0, 0], [0, 0]], dtype=tf.float64)
         self.d2 = tf.Variable([[0], [0]], dtype=tf.float64)
-        
-        self.iterate_wolfe = tf.Variable(0)
-        self.iterate_update = tf.Variable(0)
 
         param_count = 0
         for i, shape in enumerate(self._weight_shapes):
@@ -153,8 +150,8 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             dtype=tf.float64,
         )
         self.obj_val = tf.Variable(0, name="loss_value", dtype=tf.float64)
-    
 
+    @tf.function
     def _from_vector_to_matrices(self, vector):
         """
         Turn 1D weight representation into model representation
@@ -173,7 +170,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             num_partitions=self._n_weights,
         )
 
-
+    @tf.function
     def _from_matrices_to_vector(self, matrices: tf.Tensor):
         """
         Turn weights in model representation to 1D representation
@@ -188,7 +185,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         return tf.dynamic_stitch(indices=self._weight_indices, data=matrices)
 
-
+    @tf.function
     def _update_model_parameters(self, new_params: tf.Tensor):
         """
         Assign new set of weights to model
@@ -206,8 +203,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             param = tf.cast(param, dtype=K.floatx())
             self.model.trainable_weights[i].assign(param)
 
-
-
+    @tf.function
     def _objective_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
         Calculate value of objective function given a certain set of model weights
@@ -223,10 +219,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         loss: tf.Tensor
         """
         self._update_model_parameters(weights)
-        self.objective_tracker.assign_add(self.unity_variable)
+        self.objective_tracker.assign_add(1)
         self.obj_val.assign(self.loss(y, self.model(x, training=True)))
 
-
+    @tf.function
     def _gradient_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
         Calculate value of objective function given a certain set of model weights
@@ -248,11 +244,11 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             y_pred = self.model(x, training=True)
             loss_value = self.loss(y, y_pred)
         grads = tape.gradient(loss_value, self.model.trainable_weights)
-        self.grad_tracker.assign_add(self.unity_variable)
-        self.objective_tracker.assign_add(self.unity_variable)
+        self.grad_tracker.assign_add(1)
+        self.objective_tracker.assign_add(1)
         self.grad.assign(self._from_matrices_to_vector(grads))
 
-
+    @tf.function
     def _obj_func_and_grad_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
         Calculate value of objective function given a certain set of model weights
@@ -275,12 +271,12 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             y_pred = self.model(x, training=True)
             loss_value = self.loss(y, y_pred)
         grads = tape.gradient(loss_value, self.model.trainable_weights)
-        self.grad_tracker.assign_add(self.unity_variable)
-        self.objective_tracker.assign_add(self.unity_variable)
+        self.grad_tracker.assign_add(1)
+        self.objective_tracker.assign_add(1)
         self.obj_val.assign(loss_value)
         self.grad.assign(self._from_matrices_to_vector(grads))
 
-        
+    @tf.function
     def _save_new_model_weights(self, weights: tf.Tensor) -> None:
         """
         Get new set of weights and assign it to the model
@@ -300,9 +296,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.wolfe_line_search(x=x, y=y)
         # tf.print(self.alpha_star)
         self.conj_grad_step(x=x, y=y)
-        self._update_step_iterate.assign_add(self.unity_variable)
+        self.j.assign_add(1)
 
-
+    @tf.function
     def update_step(self, x: tf.Tensor, y: tf.Tensor):
         """
         Initialise conjugate gradient method by setting initial search direction
@@ -316,22 +312,20 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         Returns
         -------
 
-        """       
-        self._update_step_iterate.assign(self.zero_variable)
-        self._update_step_break.assign(self.false_variable)
-        
+        """
+        self.j.assign(0)
         self._obj_func_and_grad_call(self.weights, x, y)
         self.r.assign(tf.math.negative(self.grad))
         self.d.assign(self.r)
         self._update_step_break.assign(self.false_variable)
 
-        def while_cond_update_step(iterate):
+        def while_cond_update_step(iterate, _update_step_break):
             return tf.math.logical_and(
-                tf.math.less(self._update_step_iterate, self.max_iters),
-                tf.math.equal(self._update_step_break, self.false_variable),
+                tf.math.less(iterate, self.max_iters),
+                tf.math.equal(_update_step_break, self.false_variable),
             )
 
-        def body_update_step(iterate):
+        def body_update_step(iterate, _update_step_break):
             self.wolfe_and_conj_grad_step(x=x, y=y)
 
             def check_alpha_zero():
@@ -348,15 +342,21 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 stop_update,
                 cont_update,
             )
-            return (self._update_step_iterate,)
 
-        tf.while_loop(
+            iterate = self.j
+            _update_step_break = self._update_step_break
+            return (iterate, _update_step_break)
+
+        iterate = tf.Variable(0, dtype=tf.float64)
+        _update_step_break = tf.Variable(False, dtype=bool)
+
+        iterate, _update_step_break = tf.while_loop(
             cond=while_cond_update_step,
             body=body_update_step,
-            loop_vars=[self._update_step_iterate],
+            loop_vars=[iterate, _update_step_break],
         )
 
-
+    @tf.function
     def conj_grad_step(self, x, y):
         def alpha_zero_cond():
             return tf.math.equal(self.alpha, self.zero_variable)
@@ -416,7 +416,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         return d_new, r_new, obj_val_new
         """
 
-    
+    @tf.function
     def apply_gradients(self, vars, x, y):
         """
         Do exactly one update step, which could include multiple iterations
@@ -436,7 +436,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._save_new_model_weights(self.weights)
         return self.model.trainable_weights
 
-    
+    @tf.function
     def wolfe_line_search(self, x=None, y=None):
         """
         Find alpha that satisfies strong Wolfe conditions.
@@ -458,9 +458,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         alpha_star: float or None
             Best alpha, or None if the line search algorithm did not converge.
         """
-        self._wolfe_iterate.assign(self.zero_variable)
-        self._wolfe_break.assign(self.false_variable)
-        
+
         # Leaving the weights as is, is the equivalent of setting alpha to 0
         # Thus, we get objective value at 0 and the gradient at 0
         self._obj_func_and_grad_call(self.weights, x, y)
@@ -486,16 +484,17 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         # Initial alpha_lo equivalent to alpha = 0
         self.phi_a0.assign(self.phi0)
         self.derphi_a0.assign(self.derphi0)
+        self.i.assign(0)
 
         # While cond
-        def while_cond(iterate):
+        def while_cond(iterate, _break):
             return tf.math.logical_and(
-                tf.math.less(self._wolfe_iterate, self.max_iters),
-                tf.math.equal(self._wolfe_break, self.false_variable),
+                tf.math.less(iterate, self.max_iters),
+                tf.math.equal(_break, self.false_variable),
             )
 
         # Define loop body
-        def body(iterate):
+        def body(iterate, _break):
             def init_cond():
                 return tf.math.logical_or(
                     tf.math.equal(self.alpha1, self.zero_variable),
@@ -527,7 +526,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     ),
                     tf.math.logical_and(
                         tf.math.greater_equal(self.phi_a1, self.phi_a0),
-                        tf.math.greater(self._wolfe_iterate, self.unity_variable),
+                        tf.math.greater(self.i, self.unity_variable),
                     ),
                 )
 
@@ -543,9 +542,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     y,
                 )
                 self.alpha.assign(self.alpha_star)
-                # self._wolfe_iterate.assign_add(1)
-                self._wolfe_break.assign(self.true_variable)
-                return self._wolfe_break
+                # self.i.assign_add(1)
+                self._break.assign(self.true_variable)
+                return self._break
 
             def second_cond():
                 return tf.math.less_equal(
@@ -565,9 +564,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 self.phi_star.assign(self.obj_val)
                 self.derphi_star.assign(self.derphi_a1)
                 self.alpha.assign(self.alpha_star)
-                # self._wolfe_iterate.assign_add(1)
-                self._wolfe_break.assign(self.true_variable)
-                return self._wolfe_break
+                # self.i.assign_add(1)
+                self._break.assign(self.true_variable)
+                return self._break
 
             def third_cond():
                 return tf.math.greater_equal(self.derphi_a1, self.zero_variable)
@@ -584,25 +583,25 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     y,
                 )
                 self.alpha.assign(self.alpha_star)
-                # self._wolfe_iterate.assign_add(1)
-                self._wolfe_break.assign(self.true_variable)
-                return self._wolfe_break
+                # self.i.assign_add(1)
+                self._break.assign(self.true_variable)
+                return self._break
 
             def false_action():
-                self._wolfe_break.assign(self.false_variable)
-                return self._wolfe_break
+                self._break.assign(self.false_variable)
+                return self._break
 
             tf.cond(
                 init_cond(),
                 lambda: (
                     self.alpha_star.assign(self.zero_variable),
-                    # self._wolfe_iterate.assign_add(1),
-                    self._wolfe_break.assign(self.true_variable),
+                    # self.i.assign_add(1),
+                    self._break.assign(self.true_variable),
                 ),
                 lambda: (
                     self.alpha_star.assign(self.zero_variable),
-                    # self._wolfe_iterate.assign_add(0),
-                    self._wolfe_break.assign(self.false_variable),
+                    # self.i.assign_add(0),
+                    self._break.assign(self.false_variable),
                 ),
             )
 
@@ -619,9 +618,22 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                     ),
                 ),
             )
+            """
+            _break = tf.cond(
+                first_cond(),
+                first_check_action,
+                false_action,
+            )
+            _break = tf.cond(
+                second_cond(),
+                second_check_action,
+                false_action,
+            )
+            _break = tf.cond(third_cond(), third_check_action, false_action)
+            """
 
             def solution_found_cond():
-                return tf.math.equal(self._wolfe_break, self.true_variable)
+                return tf.math.equal(self._break, self.true_variable)
 
             def solution_found():
                 pass
@@ -650,14 +662,19 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 lambda: solution_not_found(),
             )
 
-            self._wolfe_iterate.assign_add(self.unity_variable)
-            return (self._wolfe_iterate,)
-    
-        
+            self.i.assign_add(1)
+
+            iterate = self.i
+            _break = self._break
+            return (iterate, _break)
+
+        iterate = tf.Variable(0, dtype=tf.float64)
+        _break = tf.Variable(False, dtype=bool, shape=[])
+
         # While loop
-        tf.while_loop(while_cond, body, [self._wolfe_iterate])
+        iterate, _break = tf.while_loop(while_cond, body, [iterate, _break])
 
-
+    @tf.function
     def _zoom(
         self,
         a_lo,
@@ -671,9 +688,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         Zoom stage of approximate line search satisfying strong Wolfe conditions.
         """
-        self._zoom_iterate.assign(self.zero_variable)
-        self._zoom_break.assign(self.false_variable)
-        
         self.phi_rec = self.phi0
         self.a_hi.assign(a_hi)
         self.a_lo.assign(a_lo)
@@ -682,15 +696,15 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.derphi_lo.assign(derphi_lo)
         self.a_rec.assign(self.zero_variable)
         self._zoom_break.assign(self.false_variable)
-        self._zoom_iterate.assign(self.zero_variable)
+        self.k.assign(self.zero_variable)
 
-        def zoom_while_cond(iterate):
+        def zoom_while_cond(zoom_iterate, _zoom_break):
             return tf.math.logical_and(
-                tf.less(self._zoom_iterate, self.max_iter_zoom),
-                tf.math.equal(self._zoom_break, self.false_variable),
+                tf.less(zoom_iterate, self.max_iter_zoom),
+                tf.math.equal(_zoom_break, self.false_variable),
             )
 
-        def zoom_body(iterate):
+        def zoom_body(zoom_iterate, _zoom_break):
             self.dalpha.assign(tf.math.subtract(self.a_hi, self.a_lo))
 
             def cond_trial_step():
@@ -719,11 +733,11 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             # end points (or out of the interval) then use bisection
 
             def cond_interpolation1():
-                return tf.greater(self._zoom_iterate, self.zero_variable)
+                return tf.greater(self.k, self.zero_variable)
 
             def cond_interpolation2():
                 return tf.logical_or(
-                    tf.equal(self._zoom_iterate, self.zero_variable),
+                    tf.equal(self.k, self.zero_variable),
                     tf.logical_or(
                         tf.equal(self.a_j, self.none_variable),
                         tf.logical_or(
@@ -885,17 +899,31 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
                 false_fn_aj1,
             )
 
-            self._zoom_iterate.assign_add(self.unity_variable)
-            return (self._zoom_iterate,)
+            self.k.assign_add(1)
+            zoom_iterate = self.k
+            _zoom_break = self._zoom_break
 
-        tf.while_loop(
+            return (zoom_iterate, _zoom_break)
+
+        zoom_iterate = tf.Variable(0, dtype=tf.float64)
+        _zoom_break = tf.Variable(False, dtype=bool, shape=[])
+
+        zoom_iterate, _zoom_break = tf.while_loop(
             zoom_while_cond,
             zoom_body,
-            [self._zoom_iterate],
+            [zoom_iterate, _zoom_break],
         )
 
-
     def _cubicmin(self):
+        """
+        with tf.control_dependencies(
+            [
+                tf.debugging.assert_all_finite(
+                    [a, fa, fpa, b, fb, c, fc], "Input values must be finite."
+                )
+            ]
+        ):
+        """
         self.C.assign(self.derphi_lo)
         self.db.assign(tf.math.subtract(self.a_hi, self.a_lo))
         self.dc.assign(tf.math.subtract(self.a_rec, self.a_lo))
@@ -984,10 +1012,18 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.a_j.assign(
             tf.where(tf.math.is_finite(self.xmin), self.xmin, self.none_variable)
         )
-    
-    
 
     def _quadmin(self):
+        """
+        with tf.control_dependencies(
+            [
+                tf.debugging.assert_all_finite(
+                    [point_1, obj_1, grad_1, point_2, obj_2],
+                    "Input values must be finite.",
+                )
+            ]
+        ):
+        """
         self.D.assign(self.phi_lo)
         self.C.assign(self.derphi_lo)
         self.db.assign(

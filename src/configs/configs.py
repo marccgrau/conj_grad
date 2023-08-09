@@ -44,7 +44,7 @@ class TrainConfig:
         return f"TrainConfig(max_calls='{self.max_calls}', max_epochs='{self.max_epochs}', loss_fn={fn}, batch_size={self.batch_size})"
 
 
-_KERAS_OPTIMIZERS = frozenset({"RMSPROP", "SGD", "ADAM", "NLCG"})
+_KERAS_OPTIMIZERS = frozenset({"RMSPROP", "SGD", "ADAM", "NLCG", "NLCGEager"})
 
 
 @dataclasses.dataclass(slots=True, frozen=True)

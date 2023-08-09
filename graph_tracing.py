@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime
 from src.utils import setup
 import logging
+import os
 
 # Basic setup
 setup.set_dtype("64")
@@ -14,6 +15,11 @@ if tf.config.list_physical_devices("GPU"):
     print("TensorFlow **IS** using the GPU")
 else:
     print("TensorFlow **IS NOT** using the GPU")
+    
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"]="14"
+
+tf.config.list_physical_devices('GPU')[0]
 
 # Get configs
 data_config = experiment_configs.data["CIFAR10"]
@@ -26,12 +32,12 @@ tf.random.set_seed(train_config.seed)
 
 # Get data
 train_data, test_data = get_data.fetch_data(data_config)
-train_data = train_data.batch(batch_size=10000)
+train_data = train_data.batch(batch_size=12500)
 train_data = train_data.cache()
 train_data = train_data.prefetch(tf.data.AUTOTUNE)
 
 if test_data is not None:
-    test_data = test_data.batch(batch_size=10000)
+    test_data = test_data.batch(batch_size=5000)
     test_data = test_data.cache()
     test_data = test_data.prefetch(tf.data.AUTOTUNE)
 
@@ -44,33 +50,24 @@ model.summary()
 optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
 
 # Compile model with optimizer
-tf.config.run_functions_eagerly(True)
+tf.config.run_functions_eagerly(False)
 model.compile(
     loss=train_config.loss_fn,
     optimizer=optimizer,
     metrics=["accuracy"],
-    run_eagerly=True,
+    run_eagerly=False,
 )
 
 # logging
-log_dir = "logs/func/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-
-tf.keras.backend.set_learning_phase(True)
+log_dir = "logs/func/" + datetime.now().strftime("%Y%m%d-%H%M%S") + "graph_tracing"
+tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch='2, 4')
 
 model.fit(
     train_data,
-    epochs=2,
+    epochs=5,
     validation_data=test_data,
     callbacks=[tensorboard_callback],
 )
-
-tf.keras.backend.set_learning_phase(False)
-
-for elem in test_data.take(1):
-    a = tf.expand_dims(elem[0][0], 0)
-    b = elem[0][1]
-    y_pred = model(a, training=True)
 
 print("Evaluate on test data")
 results = model.evaluate(test_data)
