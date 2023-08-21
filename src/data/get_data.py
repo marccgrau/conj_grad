@@ -80,6 +80,7 @@ def _load_cifar100(data_config: DataConfig):
     train_ds, test_ds = tfds.load(
         "cifar100",
         split=["train", "test"],
+        data_dir=data_config.path,
         shuffle_files=True,
         as_supervised=True,
     )
@@ -116,6 +117,7 @@ def _load_mnist(data_config: DataConfig):
     train_ds, test_ds = tfds.load(
         "mnist",
         split=["train", "test"],
+        data_dir=data_config.path,
         shuffle_files=True,
         as_supervised=True,
     )
@@ -153,6 +155,7 @@ def _load_fashion_mnist(data_config: DataConfig):
     train_ds, test_ds = tfds.load(
         "fashion_mnist",
         split=["train", "test"],
+        data_dir=data_config.path,
         shuffle_files=True,
         as_supervised=True,
     )
