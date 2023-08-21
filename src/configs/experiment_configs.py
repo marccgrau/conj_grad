@@ -104,7 +104,7 @@ data: dict[str, DataConfig] = {
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=10,
         num_units_mlp=32,
-        num_base_filters=64,
+        num_base_filters=48,
         input_shape=(1, 32, 32, 3),
     ),
     "CIFAR100": DataConfig(
