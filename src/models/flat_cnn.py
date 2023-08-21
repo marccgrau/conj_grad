@@ -6,7 +6,7 @@ class FlatCNN(tf.keras.Model):
         self, num_classes=10, num_base_filters=400, model_size="small", **kwargs
     ):
         super(FlatCNN, self).__init__(**kwargs)
-        self.scaling = 2 if model_size == "large" else 1
+        self.scaling = 1.5 if model_size == "large" else 1
         self.conv1 = tf.keras.layers.Conv2D(
             filters=num_base_filters * self.scaling,
             kernel_size=(3, 3),
