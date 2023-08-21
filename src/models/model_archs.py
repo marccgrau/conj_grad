@@ -2,6 +2,7 @@ from src.models.basic_cnn import BasicCNN
 from src.models.resnet import ResNetTypeI, ResNetTypeII, ResNetCIFAR
 from src.models.cifar_models import CIFARCNN
 from src.models.flat_cnn import FlatCNN
+from src.models.flat_cnn_cifar100 import FlatCNNCifar100
 from src.models.flat_mlp import FlatMLP
 import tensorflow as tf
 from typing import Optional
@@ -20,6 +21,12 @@ def get_model(
         )
     elif model_name == "FlatCNN":
         return flat_cnn(
+            num_classes=num_classes,
+            num_base_filters=num_base_filters,
+            model_size=model_size,
+        )
+    elif model_name == "FlatCNNCifar100":
+        return flat_cnn_cifar100(
             num_classes=num_classes,
             num_base_filters=num_base_filters,
             model_size=model_size,
@@ -50,6 +57,14 @@ def flat_cnn(
     model_size: str,
 ) -> tf.keras.Model:
     return FlatCNN(
+        num_classes=num_classes,
+        num_base_filters=num_base_filters,
+        model_size=model_size,
+    )
+
+
+def flat_cnn_cifar100(num_classes: int, num_base_filters: int, model_size: str):
+    return FlatCNNCifar100(
         num_classes=num_classes,
         num_base_filters=num_base_filters,
         model_size=model_size,

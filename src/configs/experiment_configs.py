@@ -121,6 +121,7 @@ data: dict[str, DataConfig] = {
 models: dict[str, ModelConfig] = {
     "FlatMLP": ModelConfig(name="FlatMLP"),
     "FlatCNN": ModelConfig(name="FlatCNN"),
+    "FlatCNNCifar100": ModelConfig(name="FlatCNNCifar100"),
     "BasicCNN": ModelConfig(name="BasicCNN"),
     "CIFARCNN": ModelConfig(name="CIFARCNN"),
     "ResNetTypeI_18": ModelConfig(name="ResNetTypeI_18"),
