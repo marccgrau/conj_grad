@@ -339,10 +339,11 @@ if __name__ == "__main__":
     train_config = experiment_configs.train[data_config.task]
     train_config.batch_size = args.batch_size
 
-    experiment_name = f"{data_config.name}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
+    experiment_name = f"{data_config.name}-{model_config.name}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
 
     pp(f"Experiment: {experiment_name}")
     pp(data_config)
+    pp(model_config)
     pp(optimizer_config)
     pp(train_config)
 
@@ -354,7 +355,7 @@ if __name__ == "__main__":
         entity=os.getenv("WANDB_ENTITY", None),
         name=f"{experiment_name}",
         config={
-            "model_name": f"CNN",
+            "model_name": f"{model_config.name}",
             "dtype": f"{setup.DTYPE}",
             "data": dataclasses.asdict(data_config),
             "training": dataclasses.asdict(train_config),
