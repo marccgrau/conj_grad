@@ -44,12 +44,24 @@ def get_model(
         raise ValueError(f"Model {model_name} not found")
 
 
-def flat_cnn(num_classes: int) -> tf.keras.Model:
-    return FlatCNN(num_classes=num_classes)
+def flat_cnn(
+    num_classes=num_classes,
+    num_base_filters=num_base_filters,
+    model_size=model_size,
+) -> tf.keras.Model:
+    return FlatCNN(
+        num_classes=num_classes,
+        num_base_filters=num_base_filters,
+        model_size=model_size,
+    )
 
 
-def flat_mlp(num_classes: int) -> tf.keras.Model:
-    return FlatMLP(num_classes=num_classes)
+def flat_mlp(
+    num_classes=num_classes, num_units_mlp=num_units_mlp, model_size=model_size
+) -> tf.keras.Model:
+    return FlatMLP(
+        num_classes=num_classes, num_units_mlp=num_units_mlp, model_size=model_size
+    )
 
 
 def basic_cnn(num_classes: int) -> tf.keras.Model:
