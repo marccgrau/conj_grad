@@ -19,7 +19,16 @@ else:
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]="14"
 
-tf.config.list_physical_devices('GPU')[0]
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    # Restrict TensorFlow to only use the first GPU
+    try:
+        tf.config.set_visible_devices(gpus[0], 'GPU')
+        logical_gpus = tf.config.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+    except RuntimeError as e:
+    # Visible devices must be set before GPUs have been initialized
+        print(e)
 
 # Get configs
 data_config = experiment_configs.data["CIFAR10"]

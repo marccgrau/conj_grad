@@ -17,7 +17,7 @@ class CIFARCNN(tf.keras.Model):
         self.fc1 = tf.keras.layers.Dense(128, activation="relu")
         self.fc2 = tf.keras.layers.Dense(num_classes, activation="softmax")
     
-    @tf.function
+
     def call(self, inputs, training=True):
         x = self.conv1(inputs)
         x = self.bn1(x, training=training)

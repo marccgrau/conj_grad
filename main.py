@@ -73,8 +73,9 @@ def main(
         model = model_archs.basic_cnn(data_config.num_classes)
     elif "CIFAR" in data_config.name:
         # model = resnet50()
-        model = model_archs.cifar_cnn(data_config.num_classes)
+        #model = model_archs.cifar_cnn(data_config.num_classes)
         # model = model_archs.resnet_18(data_config.num_classes)
+        model = model_archs.resnet_18(data_config.num_classes)
     elif "IMAGENET" in data_config.name:
         model = model_archs.resnet_18(data_config.num_classes)
     else:
