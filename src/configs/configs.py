@@ -1,6 +1,5 @@
 import dataclasses
 import enum
-from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Callable
 import tensorflow as tf
@@ -45,7 +44,8 @@ class TrainConfig:
 
     def __repr__(self):
         fn = self.loss_fn.__name__ if self.loss_fn is not None else "None"
-        return f"TrainConfig(max_calls='{self.max_calls}', max_epochs='{self.max_epochs}', loss_fn={fn}, batch_size={self.batch_size})"
+        return f"TrainConfig(max_calls='{self.max_calls}', max_epochs='{self.max_epochs}', \
+            loss_fn={fn}, batch_size={self.batch_size})"
 
 
 _KERAS_OPTIMIZERS = frozenset({"RMSPROP", "SGD", "ADAM", "NLCG", "NLCGEager"})

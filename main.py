@@ -368,6 +368,7 @@ if __name__ == "__main__":
     main(
         run_eagerly=args.run_eagerly,
         data_config=data_config,
+        model_config=model_config,
         optimizer_config=optimizer_config,
         train_config=train_config,
     )
