@@ -3,7 +3,7 @@ import tensorflow as tf
 
 class FlatCNN(tf.keras.Model):
     def __init__(
-        self, num_classes=10, num_base_filters=120, model_size="small", **kwargs
+        self, num_classes=10, num_base_filters=150, model_size="small", **kwargs
     ):
         super(FlatCNN, self).__init__(**kwargs)
         self.scaling = 2 if model_size == "large" else 1
@@ -15,7 +15,7 @@ class FlatCNN(tf.keras.Model):
         )
         self.pool1 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))
         self.conv2 = tf.keras.layers.Conv2D(
-            filters=(num_base_filters / 4) * self.scaling,
+            filters=(num_base_filters / 5) * self.scaling,
             kernel_size=(3, 3),
             strides=1,
             padding="same",
