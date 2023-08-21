@@ -17,6 +17,8 @@ class DataConfig:
     task: TaskType
     path: Optional[Path] = dataclasses.field(default=None)
     num_classes: Optional[int] = dataclasses.field(default=None)
+    num_units_mlp: Optional[int] = dataclasses.field(default=None)
+    num_base_filters: Optional[int] = dataclasses.field(default=None)
     input_shape: tuple[int, int, int, int] = dataclasses.field(default=None)
 
     @property

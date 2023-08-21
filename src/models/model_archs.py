@@ -4,13 +4,19 @@ from src.models.cifar_models import CIFARCNN
 from src.models.flat_cnn import FlatCNN
 from src.models.flat_mlp import FlatMLP
 import tensorflow as tf
+from typing import Optional
 
 
-def get_model(model_name: str, num_classes: int) -> tf.keras.Model:
+def get_model(
+    model_name: str,
+    num_classes: int,
+    num_units_mlp: Optional[int] = None,
+    num_base_filters: Optional[int] = None,
+) -> tf.keras.Model:
     if model_name == "FlatMLP":
-        return flat_mlp(num_classes=num_classes)
+        return flat_mlp(num_classes=num_classes, num_units_mlp=num_units_mlp)
     elif model_name == "FlatCNN":
-        return flat_cnn(num_classes=num_classes)
+        return flat_cnn(num_classes=num_classes, num_base_filters=num_base_filters)
     elif model_name == "BasicCNN":
         return basic_cnn(num_classes=num_classes)
     elif model_name == "CIFARCNN":

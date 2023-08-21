@@ -72,6 +72,8 @@ def main(
     model = get_model(
         model_name=model_config.name,
         num_classes=data_config.num_classes,
+        num_units_mlp=data_config.num_units_mlp,
+        num_base_filters=data_config.num_base_filters,
     )
 
     model.build(input_shape=data_config.input_shape)

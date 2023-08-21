@@ -76,6 +76,8 @@ data: dict[str, DataConfig] = {
         name="MNIST",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=10,
+        num_units_mlp=128,
+        num_base_filters=64,
         input_shape=(1, 28, 28, 1),
     ),
     "FASHION_MNIST": DataConfig(
@@ -83,6 +85,8 @@ data: dict[str, DataConfig] = {
         name="FASHION_MNIST",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=10,
+        num_units_mlp=128,
+        num_base_filters=64,
         input_shape=(1, 28, 28, 1),
     ),
     "IMAGENET": DataConfig(
@@ -90,6 +94,8 @@ data: dict[str, DataConfig] = {
         name="IMAGENET",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=1000,
+        num_units_mlp=None,
+        num_base_filters=None,
         input_shape=(1, 224, 224, 3),
     ),
     "CIFAR10": DataConfig(
@@ -97,6 +103,8 @@ data: dict[str, DataConfig] = {
         name="CIFAR10",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=10,
+        num_units_mlp=32,
+        num_base_filters=64,
         input_shape=(1, 32, 32, 3),
     ),
     "CIFAR100": DataConfig(
@@ -104,6 +112,8 @@ data: dict[str, DataConfig] = {
         name="CIFAR100",
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=100,
+        num_units_mlp=320,
+        num_base_filters=64,
         input_shape=(1, 32, 32, 3),
     ),
 }
