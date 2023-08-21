@@ -29,10 +29,13 @@ class DataConfig:
 @dataclasses.dataclass(slots=True)
 class ModelConfig:
     name: str
+    size: str = dataclasses.field(
+        default="small", metadata={"validate": lambda s: s in ("small", "large")}
+    )
 
     @property
     def full_name(self):
-        return f"{self.name}"
+        return f"{self.name}-{self.size}"
 
 
 @dataclasses.dataclass(slots=True)

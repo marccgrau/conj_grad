@@ -12,11 +12,18 @@ def get_model(
     num_classes: int,
     num_units_mlp: Optional[int] = None,
     num_base_filters: Optional[int] = None,
+    model_size: str = "small",
 ) -> tf.keras.Model:
     if model_name == "FlatMLP":
-        return flat_mlp(num_classes=num_classes, num_units_mlp=num_units_mlp)
+        return flat_mlp(
+            num_classes=num_classes, num_units_mlp=num_units_mlp, model_size=model_size
+        )
     elif model_name == "FlatCNN":
-        return flat_cnn(num_classes=num_classes, num_base_filters=num_base_filters)
+        return flat_cnn(
+            num_classes=num_classes,
+            num_base_filters=num_base_filters,
+            model_size=model_size,
+        )
     elif model_name == "BasicCNN":
         return basic_cnn(num_classes=num_classes)
     elif model_name == "CIFARCNN":

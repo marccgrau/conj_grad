@@ -2,10 +2,14 @@ import tensorflow as tf
 
 
 class FlatMLP(tf.keras.Model):
-    def __init__(self, num_classes=10, num_units=128, **kwargs):
+    def __init__(self, num_classes=10, num_units_mlp=128, model_size="small", **kwargs):
         super(FlatMLP, self).__init__(**kwargs)
+        self.scaling = 2 if model_size == "large" else 1
+
         self.flatten = tf.keras.layers.Flatten()
-        self.hidden = tf.keras.layers.Dense(units=num_units, activation="relu")
+        self.hidden = tf.keras.layers.Dense(
+            units=num_units_mlp * self.scaling, activation="relu"
+        )
         self.output_layer = tf.keras.layers.Dense(
             units=num_classes, activation="softmax"
         )

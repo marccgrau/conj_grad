@@ -74,6 +74,7 @@ def main(
         num_classes=data_config.num_classes,
         num_units_mlp=data_config.num_units_mlp,
         num_base_filters=data_config.num_base_filters,
+        model_size=model_config.size,
     )
 
     model.build(input_shape=data_config.input_shape)
@@ -264,6 +265,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--model_size",
+        required=True,
+        choices=["small", "large"],
+        help="Size of the model (small or large)",
+    )
+
+    parser.add_argument(
         "--data",
         required=True,
         choices=list(c for c in experiment_configs.data.keys()),
@@ -335,6 +343,7 @@ if __name__ == "__main__":
     data_config.path = Path(args.path)
 
     model_config = experiment_configs.models[args.model]
+    model_config.size = args.model_size
 
     optimizer_config = experiment_configs.optimizers[args.optimizer]
 

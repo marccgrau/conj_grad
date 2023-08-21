@@ -63,7 +63,7 @@ train: dict[TaskType, TrainConfig] = {
     TaskType.MULTICLASS_CLASSIFICATION: TrainConfig(
         seed=42,
         max_calls=2500000,
-        max_epochs=25,
+        max_epochs=5,
         loss_fn=custom.crossentropy,
         batch_size=None,
         metrics=[custom.accuracy],
