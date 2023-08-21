@@ -78,6 +78,13 @@ data: dict[str, DataConfig] = {
         num_classes=10,
         input_shape=(1, 28, 28, 1),
     ),
+    "FASHION_MNIST": DataConfig(
+        path=None,  # set in CLI
+        name="FASHION_MNIST",
+        task=TaskType.MULTICLASS_CLASSIFICATION,
+        num_classes=10,
+        input_shape=(1, 28, 28, 1),
+    ),
     "IMAGENET": DataConfig(
         path=None,  # set in CLI
         name="IMAGENET",
