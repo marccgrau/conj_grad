@@ -343,14 +343,14 @@ if __name__ == "__main__":
     data_config.path = Path(args.path)
 
     model_config = experiment_configs.models[args.model]
-    model_config.size = args.model_size
+    model_config.size = args.model_size.lower()
 
     optimizer_config = experiment_configs.optimizers[args.optimizer]
 
     train_config = experiment_configs.train[data_config.task]
     train_config.batch_size = args.batch_size
 
-    experiment_name = f"{data_config.name}-{model_config.name}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
+    experiment_name = f"{data_config.name}-{model_config.name}-{model_config.size}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
 
     pp(f"Experiment: {experiment_name}")
     pp(data_config)
@@ -366,7 +366,7 @@ if __name__ == "__main__":
         entity=os.getenv("WANDB_ENTITY", None),
         name=f"{experiment_name}",
         config={
-            "model_name": f"{model_config.name}",
+            "model_name": f"{model_config.name}-{model_config.size}",
             "dtype": f"{setup.DTYPE}",
             "data": dataclasses.asdict(data_config),
             "training": dataclasses.asdict(train_config),
