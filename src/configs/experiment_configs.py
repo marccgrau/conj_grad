@@ -8,6 +8,7 @@ from src.configs.configs import (
     TaskType,
     TrainConfig,
     DataConfig,
+    ModelConfig,
 )
 from src.utils import custom
 
@@ -100,6 +101,38 @@ data: dict[str, DataConfig] = {
     ),
 }
 
+models: dict[str, ModelConfig] = {
+    "FlatMLP": ModelConfig(name="FlatMLP"),
+    "FlatCNN": ModelConfig(name="FlatCNN"),
+    "BasicCNN": ModelConfig(name="BasicCNN"),
+    "CIFARCNN": ModelConfig(name="CIFARCNN"),
+    "ResNetTypeI_18": ModelConfig(name="ResNetTypeI_18"),
+    "ResNetTypeI_34": ModelConfig(name="ResNetTypeI_34"),
+    "ResNetTypeII_50": ModelConfig(name="ResNetTypeII_50"),
+    "ResNetTypeII_101": ModelConfig(name="ResNetTypeII_101"),
+    "ResNetTypeII_152": ModelConfig(name="ResNetTypeII_152"),
+    "ResNetCIFAR": ModelConfig(name="ResNetCIFAR"),
+}
+
 dtypes: frozenset = frozenset(("float32", "float64"))
 
-gpus: frozenset = frozenset(("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"))
+gpus: frozenset = frozenset(
+    (
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+    )
+)

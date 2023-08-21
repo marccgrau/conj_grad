@@ -29,6 +29,10 @@ class DataConfig:
 class ModelConfig:
     name: str
 
+    @property
+    def full_name(self):
+        return f"{self.name}"
+
 
 @dataclasses.dataclass(slots=True)
 class TrainConfig:

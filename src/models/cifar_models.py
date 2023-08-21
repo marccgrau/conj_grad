@@ -16,7 +16,6 @@ class CIFARCNN(tf.keras.Model):
         self.flatten = tf.keras.layers.Flatten()
         self.fc1 = tf.keras.layers.Dense(128, activation="relu")
         self.fc2 = tf.keras.layers.Dense(num_classes, activation="softmax")
-    
 
     def call(self, inputs, training=True):
         x = self.conv1(inputs)
@@ -32,7 +31,7 @@ class CIFARCNN(tf.keras.Model):
         x = self.fc1(x)
         output = self.fc2(x)
         return output
-    
+
     @tf.function
     def train_step(self, data):
         # fetch data
