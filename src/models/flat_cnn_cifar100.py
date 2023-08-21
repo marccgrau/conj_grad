@@ -15,14 +15,14 @@ class FlatCNNCifar100(tf.keras.Model):
         )
         self.pool1 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))
         self.conv2 = tf.keras.layers.Conv2D(
-            filters=(num_base_filters / 10) * self.scaling,
+            filters=(num_base_filters / 2) * self.scaling,
             kernel_size=(3, 3),
             strides=1,
             padding="same",
         )
         self.pool2 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))
         self.conv3 = tf.keras.layers.Conv2D(
-            filters=(num_base_filters / 20) * self.scaling,
+            filters=(num_base_filters / 4) * self.scaling,
             kernel_size=(3, 3),
             strides=1,
             padding="same",
