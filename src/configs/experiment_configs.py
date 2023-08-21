@@ -113,7 +113,7 @@ data: dict[str, DataConfig] = {
         task=TaskType.MULTICLASS_CLASSIFICATION,
         num_classes=100,
         num_units_mlp=320,
-        num_base_filters=64,
+        num_base_filters=72,
         input_shape=(1, 32, 32, 3),
     ),
 }
