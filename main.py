@@ -317,6 +317,14 @@ def parse_args():
         help="Optional batch size if not on full dataset",
         default=None,
     )
+    
+    parser.add_argument(
+        "--max_epochs",
+        type=int,
+        required=False,
+        help="Optional number of max epochs",
+        default=None,
+    )
 
     parser.add_argument(
         "--gpu",
@@ -360,6 +368,8 @@ if __name__ == "__main__":
 
     train_config = experiment_configs.train[data_config.task]
     train_config.batch_size = args.batch_size
+    if args.max_epochs:
+        train_config.max_epochs = args.max_epochs
 
     experiment_name = f"{data_config.name}-{model_config.name}-{model_config.size}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
 
