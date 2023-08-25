@@ -371,7 +371,7 @@ if __name__ == "__main__":
     if args.max_epochs:
         train_config.max_epochs = args.max_epochs
 
-    experiment_name = f"{data_config.name}-{model_config.name}-{model_config.size}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
+    experiment_name = f"TESTRUN-{data_config.name}-{model_config.name}-{model_config.size}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
 
     pp(f"Experiment: {experiment_name}")
     pp(data_config)
