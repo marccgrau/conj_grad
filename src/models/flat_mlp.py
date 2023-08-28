@@ -2,16 +2,29 @@ import tensorflow as tf
 
 
 class FlatMLP(tf.keras.Model):
-    def __init__(self, num_classes=10, num_units_mlp=128, model_size="small", **kwargs):
+    def __init__(
+        self,
+        num_classes=10,
+        num_units_mlp=128,
+        model_size="small",
+        seed=42,
+        **kwargs,
+    ):
         super(FlatMLP, self).__init__(**kwargs)
+        self.initializer = tf.keras.initializers.GlorotUniform(seed=seed)
         self.scaling = 2 if model_size == "large" else 1
-
         self.flatten = tf.keras.layers.Flatten()
         self.hidden = tf.keras.layers.Dense(
-            units=num_units_mlp * self.scaling, activation="relu"
+            units=num_units_mlp * self.scaling,
+            activation="relu",
+            kernel_initializer=self.initializer,
+            bias_initializer=tf.zeros_initializer(),
         )
         self.output_layer = tf.keras.layers.Dense(
-            units=num_classes, activation="softmax"
+            units=num_classes,
+            activation="softmax",
+            kernel_initializer=self.initializer,
+            bias_initializer=tf.zeros_initializer(),
         )
 
     def train_step(self, data):

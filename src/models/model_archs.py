@@ -14,22 +14,28 @@ def get_model(
     num_units_mlp: Optional[int] = None,
     num_base_filters: Optional[int] = None,
     model_size: str = "small",
+    seed: int = 42,
 ) -> tf.keras.Model:
     if model_name == "FlatMLP":
         return flat_mlp(
-            num_classes=num_classes, num_units_mlp=num_units_mlp, model_size=model_size
+            num_classes=num_classes,
+            num_units_mlp=num_units_mlp,
+            model_size=model_size,
+            seed=seed,
         )
     elif model_name == "FlatCNN":
         return flat_cnn(
             num_classes=num_classes,
             num_base_filters=num_base_filters,
             model_size=model_size,
+            seed=seed,
         )
     elif model_name == "FlatCNNCifar100":
         return flat_cnn_cifar100(
             num_classes=num_classes,
             num_base_filters=num_base_filters,
             model_size=model_size,
+            seed=seed,
         )
     elif model_name == "BasicCNN":
         return basic_cnn(num_classes=num_classes)
@@ -55,25 +61,41 @@ def flat_cnn(
     num_classes: int,
     num_base_filters: int,
     model_size: str,
+    seed: int,
 ) -> tf.keras.Model:
     return FlatCNN(
         num_classes=num_classes,
         num_base_filters=num_base_filters,
         model_size=model_size,
+        seed=seed,
     )
 
 
-def flat_cnn_cifar100(num_classes: int, num_base_filters: int, model_size: str):
+def flat_cnn_cifar100(
+    num_classes: int,
+    num_base_filters: int,
+    model_size: str,
+    seed: int,
+):
     return FlatCNNCifar100(
         num_classes=num_classes,
         num_base_filters=num_base_filters,
         model_size=model_size,
+        seed=seed,
     )
 
 
-def flat_mlp(num_classes: int, num_units_mlp: int, model_size: str) -> tf.keras.Model:
+def flat_mlp(
+    num_classes: int,
+    num_units_mlp: int,
+    model_size: str,
+    seed: int,
+) -> tf.keras.Model:
     return FlatMLP(
-        num_classes=num_classes, num_units_mlp=num_units_mlp, model_size=model_size
+        num_classes=num_classes,
+        num_units_mlp=num_units_mlp,
+        model_size=model_size,
+        seed=seed,
     )
 
 

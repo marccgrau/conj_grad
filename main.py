@@ -32,10 +32,6 @@ def main(
     optimizer_config: OptimizerConfig,
     train_config: TrainConfig,
 ):
-    # set seet for replication
-    # tf.debugging.set_log_device_placement(True)
-    tf.random.set_seed(train_config.seed)
-
     pp(f"args profiler: ${args.profiler}")
     pp(f"args eagerly: ${args.run_eagerly}")
 
@@ -75,6 +71,7 @@ def main(
         num_units_mlp=data_config.num_units_mlp,
         num_base_filters=data_config.num_base_filters,
         model_size=model_config.size,
+        seed=train_config.seed,
     )
 
     model.build(input_shape=data_config.input_shape)
@@ -317,7 +314,7 @@ def parse_args():
         help="Optional batch size if not on full dataset",
         default=None,
     )
-    
+
     parser.add_argument(
         "--max_epochs",
         type=int,
@@ -343,19 +340,19 @@ if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
-    gpus = tf.config.list_physical_devices('GPU')
+    gpus = tf.config.list_physical_devices("GPU")
     if gpus:
         # Restrict TensorFlow to only use the first GPU
         try:
-            tf.config.set_visible_devices(gpus[0], 'GPU')
-            logical_gpus = tf.config.list_logical_devices('GPU')
+            tf.config.set_visible_devices(gpus[0], "GPU")
+            logical_gpus = tf.config.list_logical_devices("GPU")
             print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
         except RuntimeError as e:
-        # Visible devices must be set before GPUs have been initialized
+            # Visible devices must be set before GPUs have been initialized
             print(e)
-    
+
     print(gpus)
-    
+
     setup.set_dtype(args.dtype)
 
     data_config = experiment_configs.data[args.data]
@@ -370,6 +367,8 @@ if __name__ == "__main__":
     train_config.batch_size = args.batch_size
     if args.max_epochs:
         train_config.max_epochs = args.max_epochs
+
+    tf.random.set_seed(train_config.seed)
 
     experiment_name = f"TESTRUN-{data_config.name}-{model_config.name}-{model_config.size}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
 
