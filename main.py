@@ -372,6 +372,14 @@ if __name__ == "__main__":
 
     experiment_name = f"TESTRUN-{data_config.name}-{model_config.name}-{model_config.size}-{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
 
+    if "NLCG" in optimizer_config.name:
+        experiment_name = f"TESTRUN-{data_config.name}-{model_config.name}-{model_config.size}\
+                            -{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}-\
+                            MAXITERS-{optimizer_config.max_iters}"
+    else:
+        experiment_name = f"TESTRUN-{data_config.name}-{model_config.name}-{model_config.size}\
+                            -{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
+
     pp(f"Experiment: {experiment_name}")
     pp(data_config)
     pp(model_config)
