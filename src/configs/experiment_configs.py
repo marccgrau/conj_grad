@@ -50,7 +50,7 @@ optimizers: dict[str, OptimizerConfig] = {
             c1=1e-4,
             c2=0.9,
             amax=1.0,
-            weights=0.3,
+            weight_factor=0.3,
         ),
     ]
 }

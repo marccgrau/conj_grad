@@ -127,4 +127,4 @@ class NLCGAccWeightConfig(KerasOptimizerConfig):
     c1: float
     c2: float
     amax: float
-    weight: float
+    weight_factor: float

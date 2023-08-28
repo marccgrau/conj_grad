@@ -63,7 +63,7 @@ def fetch_optimizer(optimizer_config: OptimizerConfig, model, loss):
             c1=as_Kfloat(optimizer_config.c1),
             c2=as_Kfloat(optimizer_config.c2),
             amax=as_Kfloat(optimizer_config.amax),
-            weight=as_Kfloat(optimizer_config.weight),
+            weight_factor=as_Kfloat(optimizer_config.weight_factor),
         )
     else:
         raise ValueError("Optimizer not defined.")

@@ -20,6 +20,7 @@ class NLCGAccWeights(tf.keras.optimizers.Optimizer):
         c1=1e-4,
         c2=0.1,
         amax=1.0,
+        weight_factor=0.2,
         name="NLCG",
         **kwargs,
     ):
@@ -57,7 +58,7 @@ class NLCGAccWeights(tf.keras.optimizers.Optimizer):
         self.old_weights = [tf.identity(weight) for weight in self.weights]
         self.new_weights = [tf.identity(weight) for weight in self.weights]
         self.batch_count = 0
-        self.weight_factor = 0.2
+        self.weight_factor = weight_factor
 
     @tf.function
     def _from_vector_to_matrices(self, vector):
