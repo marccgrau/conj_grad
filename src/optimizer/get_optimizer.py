@@ -7,11 +7,12 @@ from src.configs.configs import (
     SGDConfig,
     NLCGConfigEager,
     NLCGConfig,
+    NLCGAccWeightConfig,
 )
 from src.utils.custom import as_Kfloat
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
-from src.optimizer.cg_optimizer_all_assign import NonlinearCG
-from src.utils import setup
+from src.optimizer.cg_optimizer_graph import NonlinearCG
+from src.optimizer.cg_optimizer_acc_weights import NLCGAccWeights
 
 
 def fetch_optimizer(optimizer_config: OptimizerConfig, model, loss):
@@ -52,6 +53,17 @@ def fetch_optimizer(optimizer_config: OptimizerConfig, model, loss):
             c1=as_Kfloat(optimizer_config.c1),
             c2=as_Kfloat(optimizer_config.c2),
             amax=as_Kfloat(optimizer_config.amax),
+        )
+    elif isinstance(optimizer_config, NLCGAccWeightConfig):
+        optimizer = NLCGAccWeights(
+            model=model,
+            loss=loss,
+            max_iters=optimizer_config.max_iters,
+            tol=as_Kfloat(optimizer_config.tol),
+            c1=as_Kfloat(optimizer_config.c1),
+            c2=as_Kfloat(optimizer_config.c2),
+            amax=as_Kfloat(optimizer_config.amax),
+            weight=as_Kfloat(optimizer_config.weight),
         )
     else:
         raise ValueError("Optimizer not defined.")

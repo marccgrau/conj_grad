@@ -9,6 +9,7 @@ from src.configs.configs import (
     TrainConfig,
     DataConfig,
     ModelConfig,
+    NLCGAccWeightConfig,
 )
 from src.utils import custom
 
@@ -39,6 +40,17 @@ optimizers: dict[str, OptimizerConfig] = {
             c1=1e-4,
             c2=0.9,
             amax=1.0,
+        ),
+        NLCGAccWeightConfig(
+            name="NLCGAccWeights",
+            model=None,
+            loss=None,
+            max_iters=50,
+            tol=1e-7,
+            c1=1e-4,
+            c2=0.9,
+            amax=1.0,
+            weights=0.3,
         ),
     ]
 }

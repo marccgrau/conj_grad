@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class NonlinearCGEager(tf.keras.optimizers.Optimizer):
+class NLCGAccGrads(tf.keras.optimizers.Optimizer):
     def __init__(
         self,
         model,
@@ -55,6 +55,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
 
         self.weights = self._from_matrices_to_vector(model.trainable_variables)
 
+    @tf.function
     def _from_vector_to_matrices(self, vector):
         """
         Turn 1D weight representation into model representation
@@ -73,6 +74,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             num_partitions=self._n_weights,
         )
 
+    @tf.function
     def _from_matrices_to_vector(self, matrices):
         """
         Turn weights in model representation to 1D representation
@@ -87,6 +89,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         """
         return tf.dynamic_stitch(indices=self._weight_indices, data=matrices)
 
+    @tf.function
     def _update_model_parameters(self, new_params):
         """
         Assign new set of weights to model
@@ -104,6 +107,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             param = tf.cast(param, dtype=K.floatx())
             self.model.trainable_variables[i].assign(param)
 
+    @tf.function
     def _objective_call(self, weights, x, y):
         """
         Calculate value of objective function given a certain set of model weights
@@ -122,6 +126,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self.objective_tracker += 1
         return self.loss(y, self.model(x, training=True))
 
+    @tf.function
     def _gradient_call(self, weights, x, y):
         """
         Calculate value of objective function given a certain set of model weights
@@ -147,6 +152,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self.objective_tracker += 1
         return self._from_matrices_to_vector(grads)
 
+    @tf.function
     def _obj_func_and_grad_call(self, weights, x, y):
         """
         Calculate value of objective function given a certain set of model weights
@@ -188,6 +194,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self.weights = weights
         self._update_model_parameters(weights)
 
+    @tf.function
     def update_step(self, x, y):
         """
         Initialise conjugate gradient method by setting initial search direction
@@ -247,6 +254,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             obj_val = obj_val_new
             iters += 1
 
+    @tf.function
     def apply_gradients(self, vars, x, y):
         """
         Do exactly one update step, which could include multiple iterations
@@ -265,6 +273,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         self._update_model_parameters(self.weights)
         return self.model.get_weights()
 
+    @tf.function
     def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
         """
         Find alpha that satisfies strong Wolfe conditions.
@@ -405,6 +414,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
 
         return alpha_star
 
+    @tf.function
     def _zoom(
         self,
         a_lo,

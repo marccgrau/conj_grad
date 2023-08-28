@@ -116,3 +116,15 @@ class NLCGConfig(KerasOptimizerConfig):
     c1: float
     c2: float
     amax: float
+
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class NLCGAccWeightConfig(KerasOptimizerConfig):
+    model: tf.keras.Model
+    loss: tf.keras.losses.Loss
+    max_iters: int
+    tol: float
+    c1: float
+    c2: float
+    amax: float
+    weight: float

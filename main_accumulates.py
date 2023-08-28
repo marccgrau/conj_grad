@@ -13,6 +13,7 @@ from src.models.model_archs import get_model
 from src.optimizer.get_optimizer import fetch_optimizer
 from src.optimizer.cg_optimizer_eager import NonlinearCGEager
 from src.optimizer.cg_optimizer_graph import NonlinearCG
+from src.optimizer.cg_optimizer_acc_weights import NLCGAccWeights
 from src.models.tracking import TrainTrack, CustomTqdmCallback, compute_full_loss
 from src.configs import experiment_configs
 from src.utils import setup
@@ -76,6 +77,15 @@ def main(
     optimizer = fetch_optimizer(optimizer_config, model, train_config.loss_fn)
 
     if isinstance(optimizer, NonlinearCGEager):
+        tf.config.run_functions_eagerly(run_eagerly)
+        model.compile(
+            loss=train_config.loss_fn,
+            optimizer=optimizer,
+            metrics=["accuracy"],
+            run_eagerly=run_eagerly,
+        )
+
+    if isinstance(optimizer, NLCGAccWeights):
         tf.config.run_functions_eagerly(run_eagerly)
         model.compile(
             loss=train_config.loss_fn,
