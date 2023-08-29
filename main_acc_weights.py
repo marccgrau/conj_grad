@@ -170,8 +170,10 @@ def main(
             for epoch in range(train_config.max_epochs):
                 tracker.epoch += 1
                 # Iterate through batches, calc gradients, update weights
-                if isinstance(optimizer, NonlinearCGEager) or isinstance(
-                    optimizer, NonlinearCG
+                if (
+                    isinstance(optimizer, NonlinearCGEager)
+                    or isinstance(optimizer, NonlinearCG)
+                    or isinstance(optimizer, NLCGAccWeights)
                 ):
                     epoch_loss = tf.keras.metrics.Mean()
                     for idx, (x, y) in enumerate(train_data):

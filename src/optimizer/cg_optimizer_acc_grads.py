@@ -54,6 +54,86 @@ class NLCGAccGrads(tf.keras.optimizers.Optimizer):
             param_count += n_params
 
         self.weights = self._from_matrices_to_vector(model.trainable_variables)
+        self.batch_grad_accumulator = [
+            tf.Variable(tf.zeros_like(w), trainable=False) for w in self.weights
+        ]
+        self.batch_count = tf.Variable(0, trainable=False)
+
+    def apply_gradients(self, vars):
+        """
+        Do exactly one update step, which could include multiple iterations
+        Necessary to define for training procedure
+        Parameters
+        ----------
+        vars: trainable variables of model
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+        model: tf.keras.Model
+        Updated model with new weights after iterations
+        """
+        self._update_model_parameters(vars)
+        return self.model.get_weights()
+
+    def update_step(self, x, y):
+        """
+        Initialise conjugate gradient method by setting initial search direction
+        Nonlinear conjugate gradient optimization procedure with line search satisfying Wolfe conditions
+        Beta of Polak-Ribière with max(beta, 0) to satisfy convergence conditions
+
+        Parameters
+        ----------
+        x: tf.Tensor
+        y: tf.Tensor
+        Returns
+        -------
+
+        """
+        iters = 0
+        obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
+        r = -grad
+        d = r
+        while iters < self.max_iters:
+            # Perform line search to determine alpha_star
+            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
+            logger.info(f"alpha after line search: {alpha}")
+            # update weights along search directions
+            if alpha is None:
+                logger.info("Alpha is None. Making no step.")
+                # w_new = self.weights + 10e-1 * r
+                # self._save_new_model_weights(w_new)
+                break
+            else:
+                w_new = self.weights + alpha * d
+                self._save_new_model_weights(w_new)
+            # get new objective value and gradient
+            obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
+            # set r_{k+1}
+            r_new = -grad_new
+            # Calculate Polak-Ribiére beta
+            beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(
+                tf.multiply(r, r)
+            )
+            # PRP+ with max{beta{PR}, 0}
+            beta = np.maximum(beta, 0)
+            logger.info(f"beta: {beta}")
+            # Determine new search direction for next iteration step
+            d_new = r_new + beta * d
+            # Check for convergence
+            if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
+                logger.info(f"Stop NLCG, no sufficient decrease in value function")
+                break
+            # check if vector norm is smaller than the tolerance
+            if tf.norm(r_new) <= self.tol:
+                logger.info(f"Stop NLCG, gradient norm smaller than tolerance")
+                break
+            # Set new values as old values for next iteration step
+            grad = grad_new
+            r = r_new
+            d = d_new
+            obj_val = obj_val_new
+            iters += 1
 
     @tf.function
     def _from_vector_to_matrices(self, vector):
@@ -194,86 +274,6 @@ class NLCGAccGrads(tf.keras.optimizers.Optimizer):
         self.weights = weights
         self._update_model_parameters(weights)
 
-    @tf.function
-    def update_step(self, x, y):
-        """
-        Initialise conjugate gradient method by setting initial search direction
-        Nonlinear conjugate gradient optimization procedure with line search satisfying Wolfe conditions
-        Beta of Polak-Ribière with max(beta, 0) to satisfy convergence conditions
-
-        Parameters
-        ----------
-        x: tf.Tensor
-        y: tf.Tensor
-        Returns
-        -------
-
-        """
-        iters = 0
-        obj_val, grad = self._obj_func_and_grad_call(self.weights, x, y)
-        r = -grad
-        d = r
-        while iters < self.max_iters:
-            # Perform line search to determine alpha_star
-            alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
-            logger.info(f"alpha after line search: {alpha}")
-            # update weights along search directions
-            if alpha is None:
-                logger.info("Alpha is None. Making no step.")
-                # w_new = self.weights + 10e-1 * r
-                # self._save_new_model_weights(w_new)
-                break
-            else:
-                w_new = self.weights + alpha * d
-                self._save_new_model_weights(w_new)
-            # get new objective value and gradient
-            obj_val_new, grad_new = self._obj_func_and_grad_call(self.weights, x, y)
-            # set r_{k+1}
-            r_new = -grad_new
-            # Calculate Polak-Ribiére beta
-            beta = tf.reduce_sum(tf.multiply(r_new, r_new - r)) / tf.reduce_sum(
-                tf.multiply(r, r)
-            )
-            # PRP+ with max{beta{PR}, 0}
-            beta = np.maximum(beta, 0)
-            logger.info(f"beta: {beta}")
-            # Determine new search direction for next iteration step
-            d_new = r_new + beta * d
-            # Check for convergence
-            if tf.reduce_sum(tf.abs(obj_val_new - obj_val)) < self.tol:
-                logger.info(f"Stop NLCG, no sufficient decrease in value function")
-                break
-            # check if vector norm is smaller than the tolerance
-            if tf.norm(r_new) <= self.tol:
-                logger.info(f"Stop NLCG, gradient norm smaller than tolerance")
-                break
-            # Set new values as old values for next iteration step
-            grad = grad_new
-            r = r_new
-            d = d_new
-            obj_val = obj_val_new
-            iters += 1
-
-    @tf.function
-    def apply_gradients(self, vars, x, y):
-        """
-        Do exactly one update step, which could include multiple iterations
-        Necessary to define for training procedure
-        Parameters
-        ----------
-        vars: trainable variables of model
-        x: tf.Tensor
-        y: tf.Tensor
-        Returns
-        -------
-        model: tf.keras.Model
-        Updated model with new weights after iterations
-        """
-        self.update_step(x, y)
-        self._update_model_parameters(self.weights)
-        return self.model.get_weights()
-
-    @tf.function
     def wolfe_line_search(self, maxiter=10, search_direction=None, x=None, y=None):
         """
         Find alpha that satisfies strong Wolfe conditions.
