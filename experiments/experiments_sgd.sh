@@ -1,6 +1,6 @@
-python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data MNIST --dtype float64 --optimizer SGD --batch_size 3000 --gpu 9 --run_eagerly --max_epochs 3 --use_wandb --max_calls 10985
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data MNIST --dtype float64 --optimizer SGD --batch_size 3000 --gpu 9 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 10985
 
-python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data MNIST --dtype float64 --optimizer SGD --batch_size 3000 --gpu 9 --run_eagerly --max_epochs 3 --use_wandb --max_calls 10985
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data MNIST --dtype float64 --optimizer SGD --batch_size 3000 --gpu 9 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 10985
 
 python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --datdataa MNIST --dtype float64 --optimizer SGD --batch_size 6000 --gpu 9 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 7545
 
