@@ -327,6 +327,14 @@ def parse_args():
         default=None,
     )
 
+    parser.add_argument(
+        "--max_calls",
+        required=False,
+        type=int,
+        help="Max number of calls to the optimizer",
+        default=60000,
+    )
+
     return parser.parse_args()
 
 
@@ -363,6 +371,9 @@ if __name__ == "__main__":
     train_config.batch_size = args.batch_size
     if args.max_epochs:
         train_config.max_epochs = args.max_epochs
+
+    if args.max_calls:
+        train_config.max_calls = args.max_calls
 
     tf.random.set_seed(train_config.seed)
 
