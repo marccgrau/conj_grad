@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 pp = pprint.PrettyPrinter(underscore_numbers=True).pprint
 
-amax = 1.0
+amax = 0.8
 c1 = 0.0001
 c2 = 0.9
 max_iters = 10
@@ -341,10 +341,12 @@ def _objective_call(model, loss_fn, train_data):
     loss: tf.Tensor
     """
     epoch_loss = 0
+    num_batches = 0
     for idx, (x, y) in enumerate(train_data):
         batch_loss = loss_fn(y, model(x, training=False))
         epoch_loss += batch_loss
-    return epoch_loss
+        num_batches += 1
+    return epoch_loss / tf.cast(num_batches, dtype=tf.float64)
 
 
 def _gradient_call(model, loss_fn, train_data, _weight_indices):
@@ -416,7 +418,9 @@ def _obj_func_and_grad_call(model, loss_fn, train_data, _weight_indices):
     average_gradient = [
         grad / tf.cast(num_batches, dtype=tf.float64) for grad in total_gradients
     ]
-    return epoch_loss, _from_matrices_to_vector(average_gradient, _weight_indices)
+    return epoch_loss / tf.cast(
+        num_batches, dtype=tf.float64
+    ), _from_matrices_to_vector(average_gradient, _weight_indices)
 
 
 def update_step(
