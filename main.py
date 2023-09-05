@@ -366,9 +366,6 @@ if __name__ == "__main__":
 
     tf.random.set_seed(train_config.seed)
 
-    experiment_name = f"TESTRUN-{data_config.name}-{model_config.name}-{model_config.size}\
-        -{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}"
-
     if "NLCG" in optimizer_config.name:
         experiment_name = f"TESTRUN-{data_config.name}-{model_config.name}-{model_config.size}\
                             -{optimizer_config.name}-{args.dtype}-eagerly-{args.run_eagerly}-\
