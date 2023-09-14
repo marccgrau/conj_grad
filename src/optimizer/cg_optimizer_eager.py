@@ -209,7 +209,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
             alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
-            logger.info(f"alpha after line search: {alpha}")
+            #logger.info(f"alpha after line search: {alpha}")
             # update weights along search directions
             if alpha is None:
                 logger.info("Alpha is None. Making no step.")
@@ -229,7 +229,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             )
             # PRP+ with max{beta{PR}, 0}
             beta = np.maximum(beta, 0)
-            logger.info(f"beta: {beta}")
+            #logger.info(f"beta: {beta}")
             # Determine new search direction for next iteration step
             d_new = r_new + beta * d
             # Check for convergence

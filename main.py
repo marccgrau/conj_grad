@@ -334,6 +334,14 @@ def parse_args():
         help="Max number of calls to the optimizer",
         default=60000,
     )
+    
+    parser.add_argument(
+        "--max_iters",
+        required=False,
+        type=int,
+        help="Max iterations per batch for NLCG",
+        default=50
+    )
 
     return parser.parse_args()
 
@@ -374,7 +382,10 @@ if __name__ == "__main__":
 
     if args.max_calls:
         train_config.max_calls = args.max_calls
-
+    
+    if args.max_iters and "NLCG" in optimizer_config.name :
+        optimizer_config.max_iters = args.max_iters
+    
     tf.random.set_seed(train_config.seed)
 
     if "NLCG" in optimizer_config.name:
@@ -395,7 +406,7 @@ if __name__ == "__main__":
         os.environ["WANDB_MODE"] = "offline"
 
     wandb.init(
-        project=os.getenv("WANDB_PROJECT", None),
+        project="conj_grad_results",
         entity=os.getenv("WANDB_ENTITY", None),
         name=f"{experiment_name}",
         config={

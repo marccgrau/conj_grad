@@ -56,7 +56,7 @@ class TrainConfig:
 _KERAS_OPTIMIZERS = frozenset({"RMSPROP", "SGD", "ADAM", "NLCG", "NLCGEager"})
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class OptimizerConfig:
     name: str
 
@@ -65,30 +65,30 @@ class OptimizerConfig:
         return self.name in _KERAS_OPTIMIZERS
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class KerasOptimizerConfig(OptimizerConfig):
     pass
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class ScipyOptimizerConfig(OptimizerConfig):
     pass
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class RMSPROPConfig(KerasOptimizerConfig):
     learning_rate: float
     rho: float
     epsilon: float
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class SGDConfig(KerasOptimizerConfig):
     learning_rate: float
     momentum: float
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class ADAMConfig(KerasOptimizerConfig):
     learning_rate: float
     beta_1: float
@@ -96,7 +96,7 @@ class ADAMConfig(KerasOptimizerConfig):
     epsilon: float
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class NLCGConfigEager(KerasOptimizerConfig):
     model: tf.keras.Model
     loss: tf.keras.losses.Loss
@@ -107,7 +107,7 @@ class NLCGConfigEager(KerasOptimizerConfig):
     amax: float
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class NLCGConfig(KerasOptimizerConfig):
     model: tf.keras.Model
     loss: tf.keras.losses.Loss
@@ -118,7 +118,7 @@ class NLCGConfig(KerasOptimizerConfig):
     amax: float
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
+@dataclasses.dataclass(slots=True)
 class NLCGAccWeightConfig(KerasOptimizerConfig):
     model: tf.keras.Model
     loss: tf.keras.losses.Loss
