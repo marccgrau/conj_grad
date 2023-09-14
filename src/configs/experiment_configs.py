@@ -128,6 +128,15 @@ data: dict[str, DataConfig] = {
         num_base_filters=260,
         input_shape=(1, 32, 32, 3),
     ),
+    "SVHN": DataConfig(
+        path=None,
+        name="SVHN",
+        task=TaskType.MULTICLASS_CLASSIFICATION,
+        num_classes=10,
+        num_units_mlp=16,
+        num_base_filters=280,
+        input_shape=(1, 32, 32, 3),
+    ),
 }
 
 models: dict[str, ModelConfig] = {
