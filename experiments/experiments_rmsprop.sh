@@ -1,24 +1,42 @@
-#python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 7323
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 6697
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 7323
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 5705
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 5030
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 8360
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 4284
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 8281
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 6346
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 5000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 7971
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 6000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 6333
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 5000 --gpu 3 --run_eagerly --max_epochs 50000  --use_wandb --max_calls 6815
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 16862
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data SVHN --dtype float64 --optimizer RMSPROP --batch_size 5000 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 16953
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 15491
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data SVHN --dtype float64 --optimizer RMSPROP --batch_size 5000 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 16737
 
-python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 1000 --gpu 7 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 6301
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data CIFAR100 --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 28593
 
-python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 1000 --gpu 7 --run_eagerly --max_epochs 50000  --use_wandb --max_calls 5396
+python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size large --data CIFAR100 --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 27968
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 1500 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 17636
+: '
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 9511
 
-#python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 1500 --gpu 5 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 15767
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 9000
 
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 20739
+
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data FASHION_MNIST --dtype float64 --optimizer RMSPROP --batch_size 3000 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 19021
+
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 47547
+
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data CIFAR10 --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 41575
+
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size small --data SVHN --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 31099
+
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNN --model_size large --data SVHN --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 29998
+
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNNCifar100 --model_size small --data CIFAR100 --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 47547
+
+python main.py --path "/home/user/code/data/tf_data" --model FlatCNNCifar100 --model_size large --data CIFAR100 --dtype float64 --optimizer RMSPROP --batch_size 2500 --gpu 3 --run_eagerly --max_epochs 500000 --use_wandb --max_calls 41575
+
+'
