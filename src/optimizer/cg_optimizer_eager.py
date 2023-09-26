@@ -209,7 +209,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         while iters < self.max_iters:
             # Perform line search to determine alpha_star
             alpha = self.wolfe_line_search(maxiter=10, search_direction=d, x=x, y=y)
-            #logger.info(f"alpha after line search: {alpha}")
+            # logger.info(f"alpha after line search: {alpha}")
             # update weights along search directions
             if alpha is None:
                 logger.info("Alpha is None. Making no step.")
@@ -229,7 +229,7 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             )
             # PRP+ with max{beta{PR}, 0}
             beta = np.maximum(beta, 0)
-            #logger.info(f"beta: {beta}")
+            # logger.info(f"beta: {beta}")
             # Determine new search direction for next iteration step
             d_new = r_new + beta * d
             # Check for convergence
@@ -290,8 +290,8 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         # Leaving the weights as is, is the equivalent of setting alpha to 0
         # Thus, we get objective value at 0 and the gradient at 0
         phi0 = self._objective_call(self.weights, x, y)
-        # We need the directional derivative at 0 following the Wolfe Conditions
-        # Thus, we get the gradient at 0 and multiply it with the search direction
+        # We need the directional derivative at w_0 following the Wolfe Conditions
+        # Thus, we get the gradient at w_0 and multiply it with the search direction
         derphi0 = tf.tensordot(
             self._gradient_call(self.weights, x, y), search_direction, 1
         )
@@ -311,12 +311,8 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         derphi_a0 = derphi0
         i = 0
         for i in range(maxiter):
-            # tf.cond(self.initial_cond(), lambda: break_ = True, lambda: None)
             if alpha1 == 0.0 or alpha0 == self.amax:
-                # if tf.math.logical_or(tf.math.equal(alpha1, tf.Variable(0.)), tf.math.equal(alpha0, self.amax)):
                 alpha_star = None
-                # phi_star = phi0
-                # derphi_star = None
 
                 if alpha1 == 0:
                     # if tf.math.equal(alpha1, 0):
@@ -333,7 +329,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             if phi_a1 > phi0 + self.c1 * alpha1 * derphi0 or (
                 phi_a1 >= phi_a0 and i > 1
             ):
-                # if tf.math.logical_or(tf.math.greater(phi_a1, phi0 + self.c1 * alpha1 * derphi0), tf.math.logical_and(tf.math.greater_equal(phi_a1, phi_a0), tf.math.greater(tf.Variable(i), 1))):
                 alpha_star = self._zoom(
                     alpha0,
                     alpha1,
@@ -355,7 +350,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
                 1,
             )
             if np.absolute(derphi_a1) <= -self.c2 * derphi0:
-                # if tf.math.lower_equal(tf.math.abs(derphi_a1), -self.c2 * derphi0):
                 alpha_star = alpha1  # suitable alpha found set to star and return
                 phi_star = self._objective_call(
                     self.weights + alpha_star * search_direction, x, y
@@ -382,7 +376,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
 
             # extrapolation step of alpha_i as no conditions are met
             # simple procedure to mulitply alpha by 2
-            # NOTE: check with smaller mulitplier than 2
             alpha2 = 2 * alpha1
             # check if we don't overshoot amax
             if self.amax is not None:
@@ -431,8 +424,8 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
         while True:
             # interpolate to find a trial step length between a_lo and
             # a_hi Need to choose interpolation here. Use cubic
-            # interpolation and then if the result is within delta *
-            # dalpha or outside of the interval bounded by a_lo or a_hi
+            # interpolation and then if the result is within delta * dalpha
+            # or outside of the interval bounded by a_lo or a_hi
             # then use quadratic interpolation, if the result is still too
             # close, then use bisection
 
@@ -444,7 +437,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
 
             # minimizer of cubic interpolant
             # (uses phi_lo, derphi_lo, phi_hi, and the most recent value of phi)
-            #
             # if the result is too close to the end points (or out of the
             # interval), then use quadratic interpolation with phi_lo,
             # derphi_lo and phi_hi if the result is still too close to the
@@ -523,7 +515,6 @@ class NonlinearCGEager(tf.keras.optimizers.Optimizer):
             d1[0, 1] = -(db**2)
             d1[1, 0] = -(dc**3)
             d1[1, 1] = db**3
-            # TODO: Hardcoded dtype
             [A, B] = np.dot(
                 d1,
                 np.asarray(
