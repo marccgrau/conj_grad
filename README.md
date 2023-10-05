@@ -1,57 +1,35 @@
-conj_grad
-==============================
+# NLCG Optimization for Deep Learning
 
-NLCG Optimization for Deep Learning
+This is the base repository for the Master's thesis in Computer Science at the University of St. Gallen.
+To start training run the script `main.py` with all necessary arguments. These include:
 
-Project Organization
-------------
+-   path
+    -   Directory to where data should be stored
+-   model
+    -   Choose which model should be used for training, they should be defined in src/models/model_archs
+-   model_size
+    -   Depending on the model will allow to determine its size
+-   data
+    -   Choose the dataset for optimization (MNIST, Fashion MNIST, CIFAR10, CIFAR100, SVHN)
+-   dtype
+    -   Precision used (float32, float64)
+-   optimizer
+    -   Decide on the optimizer (NLCG, Adam, RMSProp, SGD)
+-   batch_size
+    -   Choose the size of your batches
+-   gpu
+    -   In case of multiple available GPUs, decide how many and which ones you want to use
+-   run_eagerly
+    -   Use eager execution in TensorFlow
+-   max_epochs
+    -   Limit the number of epochs
+-   use_wandb
+    -   Track your experiments with WandB
+-   max_calls
+    -   Limit the number of optimization steps
 
-    ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
-    │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-    │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
-    ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-    │                         generated with `pip freeze > requirements.txt`
-    │
-    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │       └── visualize.py
-    │
-    └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
+Here is an exemplary run for the script:
 
+`python main.py --path "/home/user/code/data/tf_data" --model FlatMLP --model_size small --data MNIST --dtype float64 --optimizer ADAM --batch_size 6000 --gpu 4 --run_eagerly --max_epochs 50000 --use_wandb --max_calls 6697`
 
---------
-
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+Find more in the experiment folder.
