@@ -1,8 +1,7 @@
 import tensorflow as tf
 
-
-# TODO: Netz verkleinern
 class BasicCNN(tf.keras.Model):
+    # Basic CNN Model to test functionalities
     def __init__(self, num_classes, **kwargs):
         super(BasicCNN, self).__init__(**kwargs)
         self.conv1 = tf.keras.layers.Conv2D(

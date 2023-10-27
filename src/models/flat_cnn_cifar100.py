@@ -2,6 +2,8 @@ import tensorflow as tf
 
 
 class FlatCNNCifar100(tf.keras.Model):
+    # Larger CNN Model due to larger number of classes in CIFAR100
+    # Scaling is used to scale the number of filters in the model
     def __init__(
         self,
         num_classes=100,

@@ -2,6 +2,8 @@ import tensorflow as tf
 
 
 class FlatMLP(tf.keras.Model):
+    # Choose between small and large model dependent on experiment
+    # Scaling is used to scale the number of filters in the model
     def __init__(
         self,
         num_classes=10,

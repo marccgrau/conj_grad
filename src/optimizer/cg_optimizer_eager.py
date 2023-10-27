@@ -11,6 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 class NonlinearCGEager(tf.keras.optimizers.Optimizer):
+    """_summary_
+    Nonlinear conjugate gradient optimizer for eager execution
+    Used for thesis experiments
+    inspired by SciPy, tensorflow-probability, ase implementations
+    """
+
     def __init__(
         self,
         model,

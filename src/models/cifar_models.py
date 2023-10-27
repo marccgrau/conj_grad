@@ -2,6 +2,7 @@ import tensorflow as tf
 
 
 class CIFARCNN(tf.keras.Model):
+    # basic CNN model for CIFAR10 to test functionalities
     def __init__(self, num_classes):
         super(CIFARCNN, self).__init__()
         self.conv1 = tf.keras.layers.Conv2D(16, kernel_size=(3, 3), activation="relu")

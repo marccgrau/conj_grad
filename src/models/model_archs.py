@@ -16,6 +16,20 @@ def get_model(
     model_size: str = "small",
     seed: int = 42,
 ) -> tf.keras.Model:
+    """_summary_
+
+    Args:
+        model_name (str): choose architecture
+        num_classes (int): number of classes to predict
+        num_units_mlp (Optional[int], optional): MLP hidden layer neurons. Defaults to None.
+        num_base_filters (Optional[int], optional): CNN filters. Defaults to None.
+        model_size (str, optional): Large or small model to construct. Defaults to "small".
+        seed (int, optional): seed for initialization. Defaults to 42.
+
+
+    Returns:
+        tf.keras.Model: model
+    """
     if model_name == "FlatMLP":
         return flat_mlp(
             num_classes=num_classes,

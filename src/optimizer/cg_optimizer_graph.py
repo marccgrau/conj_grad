@@ -11,6 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 class NonlinearCG(tf.keras.optimizers.Optimizer):
+    """_summary_
+    Nonlinear conjugate gradient optimizer with Wolfe line search
+    Work done to implement fully with tensorflow operations
+    Working version, but no speed advantage to eager execution
+    inspired by SciPy, tensorflow-probability, ase implementations
+
+    """
+
     def __init__(
         self,
         model,
@@ -35,7 +43,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.model = model
         self.loss = loss
         # function call counters
-        self.objective_tracker = tf.Variable(0, name="objective_tracker", dtype=tf.float64)
+        self.objective_tracker = tf.Variable(
+            0, name="objective_tracker", dtype=tf.float64
+        )
         self.grad_tracker = tf.Variable(0, name="gradient_tracker", dtype=tf.float64)
         # model specifics
         self._weight_shapes = tf.shape_n(self.model.trainable_weights)
@@ -90,7 +100,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.denom = tf.Variable(0.0, name="denom", dtype=tf.float64)
         self.radical = tf.Variable(0.0, name="radical", dtype=tf.float64)
         # loop vars
-        self._update_step_iterate = tf.Variable(0, name="update_step_counter", dtype=tf.float64)
+        self._update_step_iterate = tf.Variable(
+            0, name="update_step_counter", dtype=tf.float64
+        )
         self._wolfe_iterate = tf.Variable(0, name="wolfe_ls_counter", dtype=tf.float64)
         self._zoom_iterate = tf.Variable(0, name="zoom_counter", dtype=tf.float64)
         self._wolfe_break = tf.Variable(False, dtype=bool)
@@ -105,7 +117,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         # empty variables for interpolation
         self.d1 = tf.Variable([[0, 0], [0, 0]], dtype=tf.float64)
         self.d2 = tf.Variable([[0], [0]], dtype=tf.float64)
-        
+
         self.iterate_wolfe = tf.Variable(0)
         self.iterate_update = tf.Variable(0)
 
@@ -153,7 +165,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             dtype=tf.float64,
         )
         self.obj_val = tf.Variable(0, name="loss_value", dtype=tf.float64)
-    
 
     def _from_vector_to_matrices(self, vector):
         """
@@ -173,7 +184,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             num_partitions=self._n_weights,
         )
 
-
     def _from_matrices_to_vector(self, matrices: tf.Tensor):
         """
         Turn weights in model representation to 1D representation
@@ -187,7 +197,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             1D representation of weights
         """
         return tf.dynamic_stitch(indices=self._weight_indices, data=matrices)
-
 
     def _update_model_parameters(self, new_params: tf.Tensor):
         """
@@ -206,8 +215,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             param = tf.cast(param, dtype=K.floatx())
             self.model.trainable_weights[i].assign(param)
 
-
-
     def _objective_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
         Calculate value of objective function given a certain set of model weights
@@ -225,7 +232,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._update_model_parameters(weights)
         self.objective_tracker.assign_add(self.unity_variable)
         self.obj_val.assign(self.loss(y, self.model(x, training=True)))
-
 
     def _gradient_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
@@ -251,7 +257,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.grad_tracker.assign_add(self.unity_variable)
         self.objective_tracker.assign_add(self.unity_variable)
         self.grad.assign(self._from_matrices_to_vector(grads))
-
 
     def _obj_func_and_grad_call(self, weights: tf.Tensor, x: tf.Tensor, y: tf.Tensor):
         """
@@ -280,7 +285,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.obj_val.assign(loss_value)
         self.grad.assign(self._from_matrices_to_vector(grads))
 
-        
     def _save_new_model_weights(self, weights: tf.Tensor) -> None:
         """
         Get new set of weights and assign it to the model
@@ -302,7 +306,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.conj_grad_step(x=x, y=y)
         self._update_step_iterate.assign_add(self.unity_variable)
 
-
     def update_step(self, x: tf.Tensor, y: tf.Tensor):
         """
         Initialise conjugate gradient method by setting initial search direction
@@ -316,10 +319,10 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         Returns
         -------
 
-        """       
+        """
         self._update_step_iterate.assign(self.zero_variable)
         self._update_step_break.assign(self.false_variable)
-        
+
         self._obj_func_and_grad_call(self.weights, x, y)
         self.r.assign(tf.math.negative(self.grad))
         self.d.assign(self.r)
@@ -355,7 +358,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             body=body_update_step,
             loop_vars=[self._update_step_iterate],
         )
-
 
     def conj_grad_step(self, x, y):
         def alpha_zero_cond():
@@ -416,7 +418,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         return d_new, r_new, obj_val_new
         """
 
-    
     def apply_gradients(self, vars, x, y):
         """
         Do exactly one update step, which could include multiple iterations
@@ -436,7 +437,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self._save_new_model_weights(self.weights)
         return self.model.trainable_weights
 
-    
     def wolfe_line_search(self, x=None, y=None):
         """
         Find alpha that satisfies strong Wolfe conditions.
@@ -460,7 +460,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         self._wolfe_iterate.assign(self.zero_variable)
         self._wolfe_break.assign(self.false_variable)
-        
+
         # Leaving the weights as is, is the equivalent of setting alpha to 0
         # Thus, we get objective value at 0 and the gradient at 0
         self._obj_func_and_grad_call(self.weights, x, y)
@@ -652,11 +652,9 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
 
             self._wolfe_iterate.assign_add(self.unity_variable)
             return (self._wolfe_iterate,)
-    
-        
+
         # While loop
         tf.while_loop(while_cond, body, [self._wolfe_iterate])
-
 
     def _zoom(
         self,
@@ -673,7 +671,7 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         """
         self._zoom_iterate.assign(self.zero_variable)
         self._zoom_break.assign(self.false_variable)
-        
+
         self.phi_rec = self.phi0
         self.a_hi.assign(a_hi)
         self.a_lo.assign(a_lo)
@@ -894,7 +892,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
             [self._zoom_iterate],
         )
 
-
     def _cubicmin(self):
         self.C.assign(self.derphi_lo)
         self.db.assign(tf.math.subtract(self.a_hi, self.a_lo))
@@ -984,8 +981,6 @@ class NonlinearCG(tf.keras.optimizers.Optimizer):
         self.a_j.assign(
             tf.where(tf.math.is_finite(self.xmin), self.xmin, self.none_variable)
         )
-    
-    
 
     def _quadmin(self):
         self.D.assign(self.phi_lo)

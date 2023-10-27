@@ -28,6 +28,18 @@ def main(
     optimizer_config: OptimizerConfig,
     train_config: TrainConfig,
 ):
+    """_summary_
+
+    Args:
+        run_eagerly (bool): force eager execution, if not try graph execution mode
+        data_config (DataConfig): dataset
+        model_config (ModelConfig): model architecture and size
+        optimizer_config (OptimizerConfig): NLCGEager, NLCG(Graph), RMSPROP, ADAM, SGD
+        train_config (TrainConfig): Task, loss_fn, metrics, max_epochs, batch_size, max_calls
+
+    Returns:
+        _type_: _description_
+    """
     pp(f"args profiler: ${args.profiler}")
     pp(f"args eagerly: ${args.run_eagerly}")
 
@@ -334,13 +346,13 @@ def parse_args():
         help="Max number of calls to the optimizer",
         default=60000,
     )
-    
+
     parser.add_argument(
         "--max_iters",
         required=False,
         type=int,
         help="Max iterations per batch for NLCG",
-        default=50
+        default=50,
     )
 
     return parser.parse_args()
@@ -382,10 +394,10 @@ if __name__ == "__main__":
 
     if args.max_calls:
         train_config.max_calls = args.max_calls
-    
-    if args.max_iters and "NLCG" in optimizer_config.name :
+
+    if args.max_iters and "NLCG" in optimizer_config.name:
         optimizer_config.max_iters = args.max_iters
-    
+
     tf.random.set_seed(train_config.seed)
 
     if "NLCG" in optimizer_config.name:
